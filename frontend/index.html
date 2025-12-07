@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- Basic Settings -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- SEO Meta Tags -->
+  <title>LuxeStay | Premium Hotel Experiences</title>
+  <meta name="description"
+    content="LuxeStay - Find and book luxury hotels, suites, and exclusive stays at the best prices." />
+  <meta name="keywords" content="hotel booking, luxury hotels, luxestay, suites, travel, vacation, exclusive stays" />
+  <meta name="author" content="LuxeStay Team" />
+
+  <!-- Google Verification -->
+  <meta name="google-site-verification" content="JDGFAYgim7J3Rm-I5MEdWEW0S3lHRIKOMhKmPV7uEx4" />
+
+  <!-- Open Graph (for Facebook, LinkedIn) -->
+  <meta property="og:title" content="LuxeStay | Premium Hotel Experiences" />
+  <meta property="og:description"
+    content="Find and book luxury hotels, suites, and exclusive stays at the best prices." />
+  <meta property="og:image" content="https://luxestay-hub.vercel.app/og-image.png" />
+  <meta property="og:url" content="https://luxestay-hub.vercel.app/" />
+  <meta property="og:type" content="website" />
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="LuxeStay | Premium Hotel Experiences" />
+  <meta name="twitter:description"
+    content="Find and book luxury hotels, suites, and exclusive stays at the best prices." />
+  <meta name="twitter:image" content="https://luxestay-hub.vercel.app/og-image.png" />
+
+  <!-- Google Fonts: Lexend Mega (Headers) and Space Grotesk (Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Lexend+Mega:wght@100..900&family=Space+Grotesk:wght@300..700&display=swap"
+    rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Space Grotesk"', 'sans-serif'],
+            display: ['"Lexend Mega"', 'sans-serif'],
+          },
+          colors: {
+            pop: {
+              purple: '#D6D6F5', // Light Lavender
+              pink: '#FFC8DD',   // Pastel Pink
+              yellow: '#FFF59D', // Bright Yellow
+              mint: '#B2F7EF',   // Mint Green
+              blue: '#A2D2FF',   // Baby Blue
+              black: '#121212',  // Ink Black
+            }
+          },
+          boxShadow: {
+            'neo': '4px 4px 0px 0px #121212',
+            'neo-lg': '8px 8px 0px 0px #121212',
+            'neo-sm': '2px 2px 0px 0px #121212',
+          },
+          borderWidth: {
+            '3': '3px',
+          },
+          animation: {
+            'bounce-slow': 'bounce 3s infinite',
+            'wiggle': 'wiggle 1s ease-in-out infinite',
+          },
+          keyframes: {
+            wiggle: {
+              '0%, 100%': { transform: 'rotate(-3deg)' },
+              '50%': { transform: 'rotate(3deg)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background-color: #D6D6F5;
+      /* Default Pop Purple Background */
+      color: #121212;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      font-family: 'Lexend Mega', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: -0.05em;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 12px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #D6D6F5;
+      border-left: 3px solid #121212;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #FFF59D;
+      border: 3px solid #121212;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #FFC8DD;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
