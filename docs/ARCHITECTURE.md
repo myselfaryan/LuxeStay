@@ -8,10 +8,10 @@ LuxeStay Hub is a full-stack hotel management and booking platform built using m
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Frontend (React)                      │
+│                     Frontend (React + Vite)                  │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │  React Components │ TypeScript │ React Router         │  │
-│  │  Bootstrap & Tailwind CSS │ Axios                     │  │
+│  │  React Components │ TypeScript │ React Router (Hash)  │  │
+│  │  Custom CSS │ Fetch API │ Context API                 │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                           ↕ HTTP/REST                        │
 └─────────────────────────────────────────────────────────────┘
@@ -31,11 +31,11 @@ LuxeStay Hub is a full-stack hotel management and booking platform built using m
 │  │  Security (JWT + Spring Security)                     │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
-                    ↕                      ↕
-        ┌───────────────────┐    ┌──────────────────┐
-        │   PostgreSQL      │    │    AWS S3        │
-        │   (NeonDB)        │    │  (Image Storage) │
-        └───────────────────┘    └──────────────────┘
+          ↕                ↕                    ↕
+┌──────────────────┐ ┌──────────────┐ ┌─────────────────┐
+│   PostgreSQL     │ │  Cloudinary  │ │  External APIs  │
+│   (Database)     │ │  (Images)    │ │ Stripe, Gemini  │
+└──────────────────┘ └──────────────┘ └─────────────────┘
 ```
 
 ---
@@ -44,13 +44,15 @@ LuxeStay Hub is a full-stack hotel management and booking platform built using m
 
 ### Technology Stack
 
-- **Framework:** Spring Boot 3.5.3
+- **Framework:** Spring Boot 3.x
 - **Language:** Java 21
 - **Build Tool:** Maven
 - **ORM:** Spring Data JPA (Hibernate)
 - **Database:** PostgreSQL
 - **Security:** Spring Security + JWT
-- **Cloud Storage:** AWS S3
+- **Image Storage:** Cloudinary
+- **Payments:** Stripe API
+- **AI Integration:** Google Gemini API
 - **Password Encryption:** BCrypt
 
 ### Layer Structure
@@ -69,6 +71,8 @@ Controllers handle HTTP requests and responses. They are responsible for:
 - `RoomController` - Room management operations
 - `BookingController` - Booking operations
 - `UserController` - User management
+- `ChatController` - AI chatbot endpoints (Gemini)
+- `PaymentController` - Stripe payment processing
 
 **Key Annotations:**
 ```java
@@ -96,7 +100,9 @@ Services contain the business logic. They:
 - `UserService` - User management logic
 - `RoomService` - Room management logic
 - `BookingService` - Booking management logic
-- `AwsS3Service` - AWS S3 integration
+- `CloudinaryService` - Cloudinary image upload integration
+- `GeminiService` - Google Gemini AI chat integration
+- `PaymentService` - Stripe payment processing
 
 #### 3. Repository Layer
 
@@ -112,6 +118,16 @@ Repositories handle database operations using Spring Data JPA:
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
+}
+
+@Repository
+public interface RoomRepository extends JpaRepository<Room, Long> {
+    List<Room> findByRoomType(String roomType);
+}
+
+@Repository
+public interface BookingRepository extends JpaRepository<Booking, Long> {
+    Optional<Booking> findByBookingConfirmationCode(String code);
 }
 ```
 
@@ -139,6 +155,11 @@ public class Room {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
     
+    private String roomType;
+    private BigDecimal roomPrice;
+    private String roomPhotoUrl;
+    private String roomDescription;
+    
     @OneToMany(mappedBy = "room", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<Booking> bookings;
 }
@@ -149,7 +170,6 @@ public class Room {
 **Location:** `src/main/java/com/sanjo/backend/security/`
 
 Security components:
-- `SecurityConfig` - Spring Security configuration
 - `JWTUtils` - JWT token generation and validation
 - `JWTAuthFilter` - Request authentication filter
 - `CustomUserDetailsService` - User authentication service
@@ -178,7 +198,6 @@ Data Transfer Objects for API communication:
 **Location:** `src/main/java/com/sanjo/backend/config/`
 
 Configuration classes:
-- `SecurityConfig` - Security and authentication setup
 - `CorsConfig` - CORS policy configuration
 
 ---
@@ -187,27 +206,52 @@ Configuration classes:
 
 ### Technology Stack
 
-- **Framework:** React 19.1.1
-- **Language:** TypeScript 4.9.5
-- **Build Tool:** Create React App with CRACO
-- **Routing:** React Router DOM 7.8.2
-- **HTTP Client:** Axios 1.11.0
-- **UI Framework:** React Bootstrap 2.10.10 + Bootstrap 5.3.8
-- **Styling:** Tailwind CSS 4.1.12
-- **Testing:** Jest + React Testing Library
+- **Framework:** React 18+
+- **Build Tool:** Vite
+- **Language:** TypeScript
+- **Routing:** React Router DOM 6+ (HashRouter)
+- **HTTP Client:** Fetch API (ApiService class)
+- **Styling:** Custom CSS
+- **Icons:** Lucide React
+- **State Management:** React Context API
 
 ### Project Structure
 
 ```
 frontend/src/
 ├── components/       # Reusable UI components
-│   └── common/      # Shared components (Navbar, LoadingSpinner, etc.)
-├── pages/           # Page components (routes)
-├── services/        # API integration layer
-├── types/           # TypeScript type definitions
-├── utils/           # Utility functions
-├── App.tsx          # Main application component
-└── index.tsx        # Application entry point
+│   ├── Navbar.tsx
+│   ├── Footer.tsx
+│   ├── RoomCard.tsx
+│   ├── Chatbot.tsx
+│   └── ConfirmationModal.tsx
+├── component/        # Feature-specific components
+│   └── common/
+│       └── PaymentPage.tsx
+├── pages/            # Page components (routes)
+│   ├── Home.tsx
+│   ├── Login.tsx
+│   ├── Register.tsx
+│   ├── AllRooms.tsx
+│   ├── RoomDetails.tsx
+│   ├── FindMyRoom.tsx
+│   ├── FindBooking.tsx
+│   ├── Profile.tsx
+│   ├── BookingSuccess.tsx
+│   └── admin/
+│       ├── ManageRooms.tsx
+│       ├── ManageBookings.tsx
+│       └── ManageUsers.tsx
+├── services/         # API integration layer
+│   └── apiService.ts
+├── context/          # React Context providers
+│   └── AuthContext.tsx
+├── types/            # TypeScript type definitions
+│   └── index.ts
+├── constants/        # App constants
+│   └── index.ts
+├── App.tsx           # Main application component
+└── main.tsx          # Application entry point
 ```
 
 ### Component Structure
@@ -217,57 +261,78 @@ frontend/src/
 **Location:** `src/pages/`
 
 Page components represent different routes:
-- `Home.tsx` - Landing page
-- `Rooms.tsx` - Browse rooms
-- `RoomDetails.tsx` - View room details
-- `BookingForm.tsx` - Book a room
-- `FindBooking.tsx` - Search bookings
+- `Home.tsx` - Landing page with featured rooms
+- `AllRooms.tsx` - Browse all rooms
+- `RoomDetails.tsx` - View room details and book
+- `FindMyRoom.tsx` - AI-powered room finder
+- `FindBooking.tsx` - Search bookings by confirmation code
 - `Login.tsx` - User login
 - `Register.tsx` - User registration
-- `Profile.tsx` - User profile and bookings
-- `AdminDashboard.tsx` - Admin panel
+- `Profile.tsx` - User profile and booking history
+- `BookingSuccess.tsx` - Booking confirmation page
+- `admin/ManageRooms.tsx` - Admin room management
+- `admin/ManageBookings.tsx` - Admin booking management
+- `admin/ManageUsers.tsx` - Admin user management
 
 #### Components
 
-**Location:** `src/components/common/`
+**Location:** `src/components/`
 
 Reusable components:
-- `Navbar.tsx` - Navigation bar
-- `LoadingSpinner.tsx` - Loading indicator
-- `ProtectedRoute.tsx` - Route authentication guard
+- `Navbar.tsx` - Navigation bar with auth state
+- `Footer.tsx` - Page footer
+- `RoomCard.tsx` - Room display card
+- `Chatbot.tsx` - AI Concierge floating chatbot
+- `ConfirmationModal.tsx` - Confirmation dialogs
 
 #### Services
 
-**Location:** `src/services/api.ts`
+**Location:** `src/services/apiService.ts`
 
-API integration using Axios:
-- `authAPI` - Authentication operations
-- `userAPI` - User management
-- `roomAPI` - Room operations
-- `bookingAPI` - Booking operations
-
-**Features:**
-- Automatic token injection
-- Response/error interceptors
-- Centralized API configuration
+Centralized API integration using Fetch API:
 
 ```typescript
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Auto-inject JWT token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+export class ApiService {
+  private static getHeaders(isMultipart = false) {
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (!isMultipart) {
+      headers['Content-Type'] = 'application/json';
+    }
+    return headers;
   }
-  return config;
-});
+
+  // Authentication
+  static async login(data: any) { ... }
+  static async register(data: any) { ... }
+
+  // Rooms
+  static async getAllRooms() { ... }
+  static async getRoomById(roomId: string) { ... }
+  static async getAvailableRoomsByDateAndType(...) { ... }
+
+  // Bookings
+  static async bookRoom(roomId: number, userId: number, bookingData: any) { ... }
+  static async getBookingByConfirmationCode(code: string) { ... }
+
+  // AI Chat
+  static async sendChatMessage(message: string) { ... }
+  static async getRoomRecommendations(query: string) { ... }
+}
 ```
+
+#### Context
+
+**Location:** `src/context/AuthContext.tsx`
+
+Authentication context for managing user state:
+- `isAuthenticated` - Login status
+- `isAdmin` - Admin role check
+- `user` - Current user data
+- `login/logout` - Auth actions
 
 #### Types
 
@@ -278,30 +343,25 @@ TypeScript interfaces for type safety:
 - User, Room, Booking models
 - Request/Response types
 
-#### Utilities
-
-**Location:** `src/utils/index.ts`
-
-Helper functions:
-- `AuthUtils` - Authentication helpers (login, logout, role checking)
-- Local storage management
-- Token validation
-
 ### Routing
 
-React Router configuration in `App.tsx`:
+React Router configuration in `App.tsx` using **HashRouter**:
 
 ```typescript
 Routes:
-  / - Home (public)
-  /rooms - Browse rooms (public)
-  /rooms/:id - Room details (public)
-  /find-booking - Find booking (public)
-  /login - Login (public, redirects if authenticated)
-  /register - Register (public, redirects if authenticated)
-  /profile - User profile (protected)
-  /book/:roomId - Book room (protected)
-  /admin/* - Admin dashboard (protected, admin only)
+  /                    - Home (public)
+  /rooms               - Browse all rooms (public)
+  /rooms/:roomId       - Room details (public)
+  /find-my-room        - AI room finder (public)
+  /find-booking        - Find booking (public)
+  /login               - Login (public)
+  /register            - Register (public)
+  /profile             - User profile (protected)
+  /payment             - Payment page (protected)
+  /booking-success     - Booking confirmation (protected)
+  /admin/rooms         - Manage rooms (admin only)
+  /admin/bookings      - Manage bookings (admin only)
+  /admin/users         - Manage users (admin only)
 ```
 
 ---
@@ -394,56 +454,76 @@ CREATE TABLE booking (
 
 ## Cloud Services Integration
 
-### AWS S3
+### Cloudinary
 
 **Purpose:** Store and serve room images
 
 **Implementation:**
-- `AwsS3Service` handles S3 operations
+- `CloudinaryService` handles image operations
 - Upload images during room creation/update
 - Return public URLs for frontend display
-- Delete images when rooms are removed
+- Automatic optimization and transformations
 
 **Configuration:**
 ```properties
-AWS_ACCESS_KEY=your_access_key
-AWS_SECRET_KEY=your_secret_key
-BUCKET_NAME=your_bucket_name
+cloudinary.cloud-name=your_cloud_name
+cloudinary.api-key=your_api_key
+cloudinary.api-secret=your_api_secret
 ```
 
-### NeonDB PostgreSQL
+### Stripe
 
-**Purpose:** Production database
+**Purpose:** Secure payment processing
 
-**Features:**
-- Fully managed PostgreSQL
-- Automatic backups
-- Connection pooling
-- SSL connections
+**Implementation:**
+- `PaymentService` handles payment operations
+- Create PaymentIntent for booking payments
+- Return client secret for frontend processing
+- Webhook handling for payment confirmation
+
+**Configuration:**
+```properties
+stripe.secret.key=your_stripe_secret_key
+```
+
+### Google Gemini API
+
+**Purpose:** AI-powered concierge and room recommendations
+
+**Implementation:**
+- `GeminiService` handles AI interactions
+- Chat endpoint for guest queries
+- Room recommendation based on natural language
+- Context-aware responses about hotel amenities
+
+**Configuration:**
+```properties
+gemini.api.key=your_gemini_api_key
+```
 
 ---
 
 ## Deployment Architecture
 
-### Frontend (Vercel)
+### Frontend
 
-- Automatic deployments from Git
+- Built with Vite for optimized production bundle
+- Static file hosting
 - CDN distribution
 - HTTPS enabled
-- Environment variables configured
 
-### Backend (Render)
+### Backend
 
-- Container-based deployment
-- Auto-scaling
+- Spring Boot JAR deployment
+- Container-based deployment (Docker support)
+- Environment-based configuration
 - Health checks
-- Cold start (~1 minute)
 
-### Database (NeonDB)
+### Database
 
-- Managed PostgreSQL
-- Automatic backups
-- High availability
+- PostgreSQL database
+- Connection pooling
+- SSL connections
 
 ---
 
@@ -490,8 +570,9 @@ All API responses follow a consistent structure:
 
 ### Frontend Optimizations
 
+- Vite build optimization
 - Code splitting with React lazy loading
-- Optimized images from S3
+- Optimized images from Cloudinary
 - Local storage for auth tokens
 - Conditional rendering
 
@@ -508,18 +589,18 @@ All API responses follow a consistent structure:
 
 ### Frontend
 
-- Axios interceptors for global error handling
+- Try-catch in API calls
 - User-friendly error messages
-- Automatic token refresh handling
+- Loading states
 - Network error recovery
 
 ---
 
 ## Future Enhancements
 
-- Payment gateway integration
 - Email notifications
 - Advanced search filters
 - Analytics dashboard
 - Multi-language support
 - Mobile applications
+- Real-time availability updates

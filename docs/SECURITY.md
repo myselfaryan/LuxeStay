@@ -86,14 +86,15 @@ localStorage.setItem('token', response.token);
 localStorage.setItem('user', JSON.stringify(response.user));
 localStorage.setItem('role', response.role);
 
-// Include in requests
-api.interceptors.request.use((config) => {
+// Include in requests (ApiService)
+private static getHeaders() {
   const token = localStorage.getItem('token');
+  const headers: HeadersInit = {};
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    headers['Authorization'] = `Bearer ${token}`;
   }
-  return config;
-});
+  return headers;
+}
 ```
 
 ---
@@ -110,6 +111,7 @@ The application supports two roles:
    - Can create bookings
    - Can view own booking history
    - Can cancel own bookings
+   - Can use AI chatbot
 
 2. **ADMIN** - Hotel managers
    - All USER permissions
@@ -117,6 +119,7 @@ The application supports two roles:
    - Can view all bookings
    - Can view all users
    - Can cancel any booking
+   - Can delete users
 
 ### Endpoint Protection
 
@@ -126,6 +129,9 @@ The application supports two roles:
 // Public endpoints (no authentication required)
 @GetMapping("/rooms/all")
 public ResponseEntity<Response> getAllRooms() { ... }
+
+@PostMapping("/ai/chat")
+public ResponseEntity<Response> chat(...) { ... }
 
 // USER or ADMIN required
 @PostMapping("/bookings/book-room/{roomId}/{userId}")
@@ -141,30 +147,23 @@ public ResponseEntity<Response> addRoom(...) { ... }
 #### Frontend (Route Protection)
 
 ```tsx
-// Protected route component
-<Route 
-  path="/admin/*" 
-  element={
-    <ProtectedRoute requireAdmin={true}>
-      <AdminDashboard />
-    </ProtectedRoute>
-  } 
-/>
+// Protected route component in App.tsx
+const ProtectedRoute = ({ adminOnly = false }: { adminOnly?: boolean }) => {
+  const { isAuthenticated, isAdmin, loading } = useAuth();
 
-// ProtectedRoute component
-const ProtectedRoute = ({ children, requireAdmin = false }) => {
-  const isAuthenticated = AuthUtils.isAuthenticated();
-  const isAdmin = AuthUtils.isAdmin();
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && !isAdmin) {
-    return <Navigate to="/" />;
+  if (adminOnly && !isAdmin) {
+    return <Navigate to="/" replace />;
   }
 
-  return children;
+  return <Outlet />;
 };
 ```
 
@@ -216,11 +215,7 @@ public Response login(LoginRequest loginRequest) {
 
 ### Password Requirements
 
-**Current requirements:**
-- Minimum length: None (should be implemented)
-- Complexity: None (should be implemented)
-
-**Recommended requirements (future enhancement):**
+**Recommended requirements:**
 - Minimum 8 characters
 - At least one uppercase letter
 - At least one lowercase letter
@@ -304,7 +299,7 @@ public class CorsConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
                     .allowedOrigins(
-                        "http://localhost:3000",
+                        "http://localhost:5173",
                         "https://your-production-domain.com"
                     )
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
@@ -362,13 +357,6 @@ User findByEmail(String email);
 - Spring Boot automatically escapes HTML in JSON responses
 - Use `@RestController` for API endpoints
 
-**Manual Sanitization (if needed):**
-```java
-import org.apache.commons.text.StringEscapeUtils;
-
-String sanitized = StringEscapeUtils.escapeHtml4(userInput);
-```
-
 ### Frontend
 
 **React's Built-in Protection:**
@@ -405,24 +393,15 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) {
 - CSRF attacks target cookie-based sessions
 - For JWT APIs, CSRF protection is not needed
 
-### If Using Cookies (Future Enhancement)
-
-Enable CSRF protection:
-```java
-http.csrf(csrf -> csrf
-    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-);
-```
-
 ---
 
 ## File Upload Security
 
-### AWS S3 Integration
+### Cloudinary Integration
 
-**AwsS3Service.java:**
+**CloudinaryService.java:**
 ```java
-public String saveImageToS3(MultipartFile photo) {
+public String uploadImage(MultipartFile photo) {
     try {
         // Validate file type
         String contentType = photo.getContentType();
@@ -435,12 +414,13 @@ public String saveImageToS3(MultipartFile photo) {
             throw new OurException("File too large");
         }
         
-        String key = UUID.randomUUID() + "_" + photo.getOriginalFilename();
-        ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentType(contentType);
+        // Upload to Cloudinary
+        Map uploadResult = cloudinary.uploader().upload(
+            photo.getBytes(),
+            ObjectUtils.asMap("resource_type", "image")
+        );
         
-        s3Client.putObject(bucketName, key, photo.getInputStream(), metadata);
-        return s3Client.getUrl(bucketName, key).toString();
+        return uploadResult.get("secure_url").toString();
         
     } catch (IOException e) {
         throw new OurException("Failed to upload image");
@@ -451,7 +431,8 @@ private boolean isValidImageType(String contentType) {
     return contentType != null && (
         contentType.equals("image/jpeg") ||
         contentType.equals("image/png") ||
-        contentType.equals("image/jpg")
+        contentType.equals("image/jpg") ||
+        contentType.equals("image/webp")
     );
 }
 ```
@@ -460,9 +441,41 @@ private boolean isValidImageType(String contentType) {
 
 1. **Validate file types** - Only allow images
 2. **Limit file size** - Prevent DoS attacks
-3. **Generate unique filenames** - Prevent overwriting
-4. **Scan for malware** - Use antivirus (future enhancement)
-5. **Set appropriate permissions** - Read-only public access
+3. **Use Cloudinary's secure URLs** - HTTPS by default
+4. **Cloudinary handles transformations** - No local file processing
+
+---
+
+## Payment Security (Stripe)
+
+### Secure Payment Flow
+
+1. **Frontend** requests PaymentIntent from backend
+2. **Backend** creates PaymentIntent with Stripe
+3. **Backend** returns `clientSecret` to frontend
+4. **Frontend** uses Stripe.js to complete payment
+5. Card details never touch your servers
+
+**PaymentService.java:**
+```java
+public PaymentIntent createPaymentIntent(BigDecimal amount) {
+    Stripe.apiKey = stripeSecretKey;
+    
+    PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+        .setAmount(amount.multiply(new BigDecimal(100)).longValue())
+        .setCurrency("usd")
+        .build();
+    
+    return PaymentIntent.create(params);
+}
+```
+
+### Security Notes
+
+- Never log or store card details
+- Use HTTPS for all payment-related requests
+- Use Stripe's test keys for development
+- Verify webhook signatures in production
 
 ---
 
@@ -489,13 +502,14 @@ public String generateToken(UserDetails userDetails) {
 
 ### Logout
 
-**Frontend:**
+**Frontend (AuthContext):**
 ```typescript
 const logout = () => {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
   localStorage.removeItem('role');
-  window.location.href = '/login';
+  setUser(null);
+  setIsAuthenticated(false);
 };
 ```
 
@@ -507,9 +521,9 @@ const logout = () => {
 
 ### Production Deployment
 
-- **Frontend (Vercel):** Automatic HTTPS
-- **Backend (Render):** Automatic HTTPS
-- **Database (NeonDB):** SSL required
+- **Frontend:** HTTPS via hosting provider (Hostinger, Vercel, etc.)
+- **Backend:** HTTPS via reverse proxy (Nginx + Let's Encrypt)
+- **Database:** SSL required for connections
 
 ### Development
 
@@ -524,60 +538,46 @@ const logout = () => {
 ### Security Best Practices
 
 1. **Never commit secrets to Git**
-2. **Use `.env` files for local development**
+2. **Use `.gitignore` for sensitive files**
 3. **Use platform environment variables in production**
 4. **Rotate secrets regularly**
 5. **Use strong, random values**
 
-### Example `.env.example`
+### Sensitive Variables
 
-```env
-# Database
-DB_URL=jdbc:postgresql://localhost:5432/luxestay_db
-DB_USER=postgres
-DB_PASSWORD=change_this_password
-
-# JWT - MUST BE 256+ BITS
-JWT_SECRET=your_very_long_random_secret_key_at_least_256_bits
-
-# AWS S3
-AWS_ACCESS_KEY=your_access_key
-AWS_SECRET_KEY=your_secret_key
-BUCKET_NAME=your_bucket_name
+```properties
+# These should NEVER be in version control
+jwt.secret=...
+cloudinary.api-secret=...
+gemini.api.key=...
+stripe.secret.key=...
+spring.datasource.password=...
 ```
 
 ---
 
-## Rate Limiting
+## API Security
 
-### Current Status
+### AI Chat Security
 
-**Not implemented** - should be added in future
+The AI chatbot (Gemini) is configured with a system prompt that:
+- Limits responses to hotel-related topics
+- Prevents injection attacks via prompt
+- Politely redirects off-topic questions
 
-### Recommended Implementation
+```java
+String systemPrompt = "You are the AI Concierge for LuxeStay... " +
+    "Do not answer questions unrelated to the hotel.";
+```
 
-**Using Bucket4j (Spring Boot):**
+### Rate Limiting
+
+**Currently not implemented** - recommended for production:
+
 ```java
 @Bean
 public RateLimiter rateLimiter() {
     return RateLimiter.create(10.0); // 10 requests per second
-}
-
-@Component
-public class RateLimitInterceptor implements HandlerInterceptor {
-    @Autowired
-    private RateLimiter rateLimiter;
-    
-    @Override
-    public boolean preHandle(HttpServletRequest request, 
-                            HttpServletResponse response, 
-                            Object handler) {
-        if (!rateLimiter.tryAcquire()) {
-            response.setStatus(429); // Too Many Requests
-            return false;
-        }
-        return true;
-    }
 }
 ```
 
@@ -585,90 +585,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
 ## Security Headers
 
-### Recommended Headers (Future Enhancement)
+### Recommended Headers
 
 ```java
-@Configuration
-public class SecurityHeadersConfig {
-    @Bean
-    public FilterRegistrationBean<SecurityHeadersFilter> securityHeaders() {
-        FilterRegistrationBean<SecurityHeadersFilter> registration = 
-            new FilterRegistrationBean<>();
-        registration.setFilter(new SecurityHeadersFilter());
-        registration.addUrlPatterns("/*");
-        return registration;
-    }
-}
-
-public class SecurityHeadersFilter implements Filter {
-    @Override
-    public void doFilter(ServletRequest request, ServletResponse response, 
-                        FilterChain chain) {
-        HttpServletResponse httpResponse = (HttpServletResponse) response;
-        
-        // Prevent clickjacking
-        httpResponse.setHeader("X-Frame-Options", "DENY");
-        
-        // XSS protection
-        httpResponse.setHeader("X-XSS-Protection", "1; mode=block");
-        
-        // Content type sniffing
-        httpResponse.setHeader("X-Content-Type-Options", "nosniff");
-        
-        // HTTPS enforcement
-        httpResponse.setHeader("Strict-Transport-Security", 
-            "max-age=31536000; includeSubDomains");
-        
-        chain.doFilter(request, response);
-    }
-}
+httpResponse.setHeader("X-Frame-Options", "DENY");
+httpResponse.setHeader("X-XSS-Protection", "1; mode=block");
+httpResponse.setHeader("X-Content-Type-Options", "nosniff");
+httpResponse.setHeader("Strict-Transport-Security", 
+    "max-age=31536000; includeSubDomains");
 ```
-
----
-
-## Audit Logging
-
-### Current Status
-
-**Not implemented** - should be added for security monitoring
-
-### Recommended Approach
-
-```java
-@Aspect
-@Component
-public class SecurityAuditAspect {
-    @Before("@annotation(PreAuthorize)")
-    public void logSecurityEvent(JoinPoint joinPoint) {
-        String username = SecurityContextHolder.getContext()
-            .getAuthentication().getName();
-        String method = joinPoint.getSignature().getName();
-        
-        log.info("Security event - User: {}, Method: {}", username, method);
-    }
-}
-```
-
----
-
-## Vulnerability Scanning
-
-### Recommendations
-
-1. **Dependency Scanning:**
-   - Use Maven dependency checker
-   - Keep dependencies updated
-   - Monitor security advisories
-
-2. **Code Scanning:**
-   - SonarQube for code quality
-   - OWASP Dependency-Check
-   - Snyk for vulnerability detection
-
-3. **Penetration Testing:**
-   - Regular security audits
-   - OWASP ZAP for automated scanning
-   - Professional pen testing (for production)
 
 ---
 
@@ -685,9 +610,8 @@ public class SecurityAuditAspect {
 - [ ] Database SSL connection enabled
 - [ ] Input validation on all endpoints
 - [ ] Error messages don't leak sensitive info
-- [ ] Rate limiting considered
-- [ ] Security headers configured
-- [ ] Audit logging implemented
+- [ ] Stripe using production keys
+- [ ] Cloudinary secure URLs enabled
 
 ### Regular Maintenance
 
@@ -734,10 +658,13 @@ public class SecurityAuditAspect {
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [Spring Security Documentation](https://spring.io/projects/spring-security)
 - [JWT Best Practices](https://tools.ietf.org/html/rfc8725)
-- [NIST Cybersecurity Framework](https://www.nist.gov/cyberframework)
+- [Stripe Security](https://stripe.com/docs/security)
+- [Cloudinary Security](https://cloudinary.com/documentation/security)
 
 ---
 
 ## Contact
 
 For security issues, please contact the security team directly rather than opening a public issue.
+
+**Author:** Aryan Sharma

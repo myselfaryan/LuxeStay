@@ -61,7 +61,7 @@ Follow the [Development Setup Guide](./DEVELOPMENT_SETUP.md) to configure your l
 ### 4. Add Upstream Remote
 
 ```bash
-git remote add upstream https://github.com/Skywalker690/LuxeStay-Hub.git
+git remote add upstream https://github.com/myselfaryan/LuxeStay-Hub.git
 ```
 
 ### 5. Create a Branch
@@ -187,12 +187,12 @@ git commit -m "Add amazing feature
 
 **Example:**
 ```
-feat: Add room availability calendar
+feat: Add AI room recommendation feature
 
-- Implement calendar component
-- Add date range selection
-- Integrate with availability API
-- Add tests for calendar logic
+- Implement GeminiService for AI recommendations
+- Add /ai/recommend-rooms endpoint
+- Create FindMyRoom page component
+- Add tests for recommendation logic
 
 Closes #123
 ```
@@ -308,9 +308,7 @@ export default RoomCard;
 ```tsx
 // Custom hook example
 const useAuth = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    AuthUtils.isAuthenticated()
-  );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const login = async (credentials: LoginRequest) => {
     // login logic
@@ -323,12 +321,12 @@ const useAuth = () => {
 #### State Management
 
 - Use local state for component-specific data
-- Use Context API for shared state (if needed)
+- Use Context API for shared state
 - Keep state close to where it's used
 
 #### API Calls
 
-- Use the centralized API service
+- Use the centralized ApiService
 - Handle errors appropriately
 - Show loading states
 
@@ -340,7 +338,7 @@ const fetchRooms = async () => {
   setLoading(true);
   setError(null);
   try {
-    const response = await roomAPI.getAllRooms();
+    const response = await ApiService.getAllRooms();
     setRooms(response.roomList);
   } catch (err) {
     setError('Failed to load rooms');
@@ -410,13 +408,13 @@ import RoomCard from './RoomCard';
 test('renders room information', () => {
   const mockRoom = {
     id: 1,
-    roomType: 'Deluxe',
+    roomType: 'Deluxe Suite',
     roomPrice: 150,
   };
 
   render(<RoomCard room={mockRoom} onBook={() => {}} />);
   
-  expect(screen.getByText('Deluxe')).toBeInTheDocument();
+  expect(screen.getByText('Deluxe Suite')).toBeInTheDocument();
 });
 ```
 
@@ -594,8 +592,10 @@ Contributors will be recognized in:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same license as the project (see LICENSE file).
+By contributing, you agree that your contributions will be licensed under the same license as the project (MIT License).
 
 ---
 
 Thank you for contributing to LuxeStay Hub! Your efforts help make this project better for everyone. 🚀
+
+**Maintainer:** Aryan Sharma ([@myselfaryan](https://github.com/myselfaryan))

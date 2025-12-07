@@ -2,138 +2,206 @@
 
 ## Overview
 
-This guide covers deploying the LuxeStay Hub application to production. The current production setup uses:
+This guide covers deploying the LuxeStay Hub application to production. The recommended production setup uses:
 
-- **Frontend:** Vercel
-- **Backend:** Render
-- **Database:** NeonDB (PostgreSQL)
-- **Storage:** AWS S3
+- **Frontend:** Static hosting (Hostinger, Vercel, Netlify)
+- **Backend:** VPS or Cloud hosting (Hostinger VPS, Render, Railway)
+- **Database:** PostgreSQL (managed or self-hosted)
+- **Image Storage:** Cloudinary
+- **Payments:** Stripe
+- **AI:** Google Gemini API
 
 ---
 
 ## Prerequisites
 
 - GitHub account with repository access
-- Vercel account
-- Render account
-- NeonDB account
-- AWS account with S3 access
+- Hosting account (Hostinger, Vercel, Render, etc.)
+- PostgreSQL database access
+- Cloudinary account
+- Stripe account
+- Google AI Studio account (for Gemini API)
 
 ---
 
-## Database Deployment (NeonDB)
+## Database Deployment
 
-### 1. Create NeonDB Project
+### Option 1: Managed PostgreSQL (Recommended)
 
+**NeonDB (Free tier available):**
 1. Visit [NeonDB Console](https://console.neon.tech/)
 2. Click "Create Project"
 3. Choose a name: `luxestay-hub`
 4. Select region (choose closest to your backend deployment)
 5. Note down the connection details
 
-### 2. Get Connection String
+**Supabase:**
+1. Visit [Supabase](https://supabase.com/)
+2. Create a new project
+3. Get PostgreSQL connection string from Settings → Database
 
-NeonDB provides a connection string in this format:
+### Option 2: Self-hosted PostgreSQL
+
+If using a VPS, install PostgreSQL:
+
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+
+# Create database and user
+sudo -u postgres psql
+CREATE DATABASE luxestay_db;
+CREATE USER luxestay_user WITH ENCRYPTED PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE luxestay_db TO luxestay_user;
 ```
-postgresql://username:password@hostname/database?sslmode=require
+
+### Connection String Format
+
 ```
-
-### 3. Configure Database
-
-The database schema will be automatically created by Spring Boot JPA on first connection.
-
-**Optional:** Manually create tables using the schema from [ARCHITECTURE.md](./ARCHITECTURE.md)
-
-### 4. Connection Pooling
-
-NeonDB has built-in connection pooling. Configure your backend's `application.properties`:
-
-```properties
-spring.datasource.hikari.maximum-pool-size=10
-spring.datasource.hikari.minimum-idle=2
+jdbc:postgresql://hostname:5432/luxestay_db?sslmode=require
 ```
 
 ---
 
-## AWS S3 Setup
+## Cloudinary Setup
 
-### 1. Create S3 Bucket
+### 1. Create Cloudinary Account
 
-1. Log in to AWS Console
-2. Navigate to S3
-3. Click "Create bucket"
-4. Name: `luxestay-hub-images` (or your preferred name)
-5. Region: Choose appropriate region
-6. Uncheck "Block all public access" for read access
-7. Create bucket
+1. Sign up at https://cloudinary.com/
+2. Verify your email
+3. Navigate to Dashboard
 
-### 2. Configure Bucket Policy
+### 2. Get API Credentials
 
-Add this bucket policy to allow public read access:
+From the Cloudinary Dashboard, note:
+- **Cloud Name**
+- **API Key**
+- **API Secret**
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "PublicReadGetObject",
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::luxestay-hub-images/*"
-        }
-    ]
-}
+### 3. Configure Upload Preset (Optional)
+
+For additional security, create an upload preset:
+1. Go to Settings → Upload
+2. Create a new unsigned upload preset
+3. Configure allowed formats (jpg, png, webp)
+
+---
+
+## Backend Deployment
+
+### Option 1: Hostinger VPS
+
+#### 1. Prepare Your VPS
+
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Java 21
+sudo apt install openjdk-21-jdk -y
+
+# Verify installation
+java -version
 ```
 
-### 3. Configure CORS
+#### 2. Upload Your Application
 
-Add CORS configuration:
+Build the JAR file locally:
+```bash
+cd backend
+./mvnw clean package -DskipTests
+```
 
-```json
-[
-    {
-        "AllowedHeaders": ["*"],
-        "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
-        "AllowedOrigins": ["*"],
-        "ExposeHeaders": []
+Upload to VPS:
+```bash
+scp target/*.jar user@your-vps-ip:/home/user/app/
+```
+
+#### 3. Create Environment File
+
+Create `/home/user/app/.env`:
+```bash
+# Database
+DB_URL=jdbc:postgresql://your-db-host:5432/luxestay_db
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+
+# JWT
+JWT_SECRET=your_production_jwt_secret_256_bits_minimum
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# Gemini AI
+GEMINI_API_KEY=your_gemini_key
+
+# Stripe
+STRIPE_SECRET_KEY=sk_live_xxxxx
+```
+
+#### 4. Create Systemd Service
+
+Create `/etc/systemd/system/luxestay.service`:
+```ini
+[Unit]
+Description=LuxeStay Hub Backend
+After=network.target
+
+[Service]
+User=user
+WorkingDirectory=/home/user/app
+ExecStart=/usr/bin/java -jar /home/user/app/backend-0.0.1-SNAPSHOT.jar
+EnvironmentFile=/home/user/app/.env
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### 5. Start the Service
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable luxestay
+sudo systemctl start luxestay
+sudo systemctl status luxestay
+```
+
+#### 6. Configure Nginx Reverse Proxy
+
+```nginx
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
     }
-]
-```
-
-### 4. Create IAM User
-
-1. Navigate to IAM → Users
-2. Create new user: `luxestay-s3-user`
-3. Attach policy: `AmazonS3FullAccess` (or create custom policy)
-4. Create access keys
-5. Save Access Key ID and Secret Access Key
-
-**Custom Policy (Recommended):**
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:PutObject",
-                "s3:GetObject",
-                "s3:DeleteObject"
-            ],
-            "Resource": "arn:aws:s3:::luxestay-hub-images/*"
-        }
-    ]
 }
 ```
 
----
+#### 7. Enable HTTPS with Let's Encrypt
 
-## Backend Deployment (Render)
+```bash
+sudo apt install certbot python3-certbot-nginx -y
+sudo certbot --nginx -d api.yourdomain.com
+```
 
-### 1. Prepare Backend
+### Option 2: Docker Deployment
 
-Ensure your backend has a `Dockerfile` (already included in the project):
+#### 1. Create Dockerfile (Already in project)
 
 ```dockerfile
 FROM eclipse-temurin:21-jdk-alpine
@@ -143,95 +211,91 @@ EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
-### 2. Create Render Service
+#### 2. Build and Run
+
+```bash
+# Build JAR
+./mvnw clean package -DskipTests
+
+# Build Docker image
+docker build -t luxestay-backend .
+
+# Run container
+docker run -d \
+  --name luxestay-backend \
+  -p 8080:8080 \
+  -e DB_URL=jdbc:postgresql://host:5432/luxestay_db \
+  -e DB_USER=user \
+  -e DB_PASSWORD=password \
+  -e JWT_SECRET=your_secret \
+  -e CLOUDINARY_CLOUD_NAME=your_cloud \
+  -e CLOUDINARY_API_KEY=your_key \
+  -e CLOUDINARY_API_SECRET=your_secret \
+  -e GEMINI_API_KEY=your_gemini_key \
+  -e STRIPE_SECRET_KEY=your_stripe_key \
+  luxestay-backend
+```
+
+### Option 3: Render (Easy Deployment)
 
 1. Log in to [Render](https://render.com/)
 2. Click "New +" → "Web Service"
 3. Connect your GitHub repository
 4. Configure:
-   - **Name:** `luxestay-hub-backend`
+   - **Name:** `luxestay-backend`
    - **Environment:** Docker
    - **Region:** Choose appropriate region
    - **Branch:** `main`
    - **Root Directory:** `backend`
-
-### 3. Configure Build Settings
-
-- **Build Command:** `./mvnw clean package -DskipTests`
-- **Start Command:** Automatically detected from Dockerfile
-
-### 4. Add Environment Variables
-
-In Render dashboard, add these environment variables:
-
-```
-DB_URL=postgresql://username:password@hostname/database?sslmode=require
-DB_USER=your_neondb_user
-DB_PASSWORD=your_neondb_password
-JWT_SECRET=your_super_secret_jwt_key_256_bits_minimum
-AWS_ACCESS_KEY=your_aws_access_key
-AWS_SECRET_KEY=your_aws_secret_key
-BUCKET_NAME=luxestay-hub-images
-```
-
-### 5. Configure Health Check
-
-- **Health Check Path:** `/rooms/all`
-- **Health Check Interval:** 30 seconds
-
-### 6. Deploy
-
-Click "Create Web Service" and wait for deployment to complete.
-
-### 7. Note the Backend URL
-
-After deployment, note your backend URL:
-```
-https://luxestay-hub.onrender.com
-```
+5. Add environment variables
+6. Deploy
 
 ---
 
-## Frontend Deployment (Vercel)
+## Frontend Deployment
 
-### 1. Prepare Frontend
+### Option 1: Hostinger
 
-Update `frontend/src/services/api.ts` with your production backend URL:
+#### 1. Build the Frontend
 
-```typescript
-const isLocal = window.location.hostname === "localhost";
-
-export const API_BASE_URL = isLocal
-    ? "http://localhost:8080"
-    : "https://luxestay-hub.onrender.com";  // Your Render URL
+```bash
+cd frontend
+npm install
+npm run build
 ```
 
-### 2. Create Vercel Project
+#### 2. Update API URL
+
+Before building, update `src/constants/index.ts`:
+```typescript
+export const API_BASE_URL = 'https://api.yourdomain.com';
+```
+
+#### 3. Upload to Hostinger
+
+Upload the contents of `dist/` folder to your Hostinger file manager or via FTP.
+
+#### 4. Configure for SPA (HashRouter)
+
+Since the app uses HashRouter, no special server configuration is needed. All routes work with `index.html`.
+
+### Option 2: Vercel
 
 1. Log in to [Vercel](https://vercel.com/)
 2. Click "Add New..." → "Project"
 3. Import your GitHub repository
 4. Configure:
-   - **Framework Preset:** Create React App
+   - **Framework Preset:** Vite
    - **Root Directory:** `frontend`
    - **Build Command:** `npm run build`
-   - **Output Directory:** `build`
+   - **Output Directory:** `dist`
+5. Deploy
 
-### 3. Configure Environment Variables (if needed)
+### Option 3: Netlify
 
-If you have any frontend environment variables, add them in Vercel settings.
-
-**Note:** The API URL is hardcoded in the frontend, so no environment variables are needed by default.
-
-### 4. Deploy
-
-Click "Deploy" and wait for the build to complete.
-
-### 5. Configure Custom Domain (Optional)
-
-1. Go to Project Settings → Domains
-2. Add your custom domain
-3. Configure DNS records as instructed
+1. Log in to [Netlify](https://netlify.com/)
+2. Drag and drop `dist/` folder
+3. Or connect to GitHub for automatic deployments
 
 ---
 
@@ -251,8 +315,9 @@ public class CorsConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
                         .allowedOrigins(
-                            "http://localhost:3000",
-                            "https://your-vercel-domain.vercel.app"
+                            "http://localhost:5173",
+                            "https://yourdomain.com",
+                            "https://www.yourdomain.com"
                         )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
@@ -263,243 +328,158 @@ public class CorsConfig {
 }
 ```
 
-Commit and push the changes to trigger a new deployment.
-
 ### 2. Test the Deployment
 
-1. Visit your Vercel URL
+1. Visit your frontend URL
 2. Try registering a new user
 3. Login with the user
 4. Browse rooms
-5. Create a booking
-6. Test admin functions (if you have admin access)
-
-### 3. Seed Production Database (Optional)
-
-Connect to your NeonDB database and run seed scripts:
-
-```bash
-psql "postgresql://username:password@hostname/database?sslmode=require" -f seed.sql
-```
+5. Test AI chatbot
+6. Create a booking (with Stripe test keys)
+7. Test admin functions (if you have admin access)
 
 ---
 
-## Continuous Deployment
+## Environment Variables Summary
 
-Both Vercel and Render support automatic deployments from GitHub.
+### Backend
 
-### How it Works
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `spring.datasource.url` | Database URL | `jdbc:postgresql://host:5432/db` |
+| `spring.datasource.username` | DB username | `postgres` |
+| `spring.datasource.password` | DB password | `secure_password` |
+| `jwt.secret` | JWT signing key | `long_random_string` |
+| `cloudinary.cloud-name` | Cloudinary cloud | `my-cloud` |
+| `cloudinary.api-key` | Cloudinary key | `123456789` |
+| `cloudinary.api-secret` | Cloudinary secret | `abcdefghijk` |
+| `gemini.api.key` | Gemini API key | `AIzaSy...` |
+| `stripe.secret.key` | Stripe secret | `sk_live_...` |
 
-1. Push changes to GitHub
-2. Vercel/Render detects the push
-3. Automatically builds and deploys
+### Frontend
 
-### Branch-Based Deployments
-
-**Vercel:**
-- `main` branch → Production
-- Other branches → Preview deployments
-
-**Render:**
-- Configure multiple environments in Render dashboard
-- Set up separate services for staging/production
+Update in `src/constants/index.ts`:
+```typescript
+export const API_BASE_URL = 'https://api.yourdomain.com';
+```
 
 ---
 
 ## Monitoring and Maintenance
 
-### Backend Monitoring (Render)
+### Application Logs
 
-1. **Logs:** View real-time logs in Render dashboard
-2. **Metrics:** Monitor CPU, memory, and request metrics
-3. **Alerts:** Set up email alerts for service issues
-
-### Frontend Monitoring (Vercel)
-
-1. **Analytics:** Enable Vercel Analytics
-2. **Logs:** View deployment and function logs
-3. **Performance:** Monitor Core Web Vitals
-
-### Database Monitoring (NeonDB)
-
-1. **Connection Stats:** Monitor active connections
-2. **Storage Usage:** Track database size
-3. **Query Performance:** Analyze slow queries
-
-### AWS S3 Monitoring
-
-1. **CloudWatch:** Monitor storage metrics
-2. **Access Logs:** Enable S3 access logging
-3. **Cost Tracking:** Monitor S3 costs
-
----
-
-## Backup and Recovery
-
-### Database Backups
-
-**NeonDB** provides automatic backups:
-- Point-in-time recovery
-- Automatic daily backups
-- 7-day retention (free tier)
-
-**Manual Backup:**
+**Systemd:**
 ```bash
-pg_dump "postgresql://username:password@hostname/database?sslmode=require" > backup.sql
+sudo journalctl -u luxestay -f
 ```
 
-**Restore:**
+**Docker:**
 ```bash
-psql "postgresql://username:password@hostname/database?sslmode=require" < backup.sql
+docker logs -f luxestay-backend
 ```
 
-### S3 Backups
+### Health Check
 
-- Enable S3 versioning
-- Configure lifecycle policies
-- Use S3 Cross-Region Replication for critical data
+Create a simple health endpoint check:
+```bash
+curl https://api.yourdomain.com/rooms/all
+```
 
----
+### Database Backup
 
-## Scaling Considerations
+```bash
+# Backup
+pg_dump -h hostname -U username -d luxestay_db > backup_$(date +%Y%m%d).sql
 
-### Backend Scaling
-
-**Render:**
-- Upgrade to paid plan for better resources
-- Enable auto-scaling
-- Use multiple instances for high traffic
-
-### Database Scaling
-
-**NeonDB:**
-- Upgrade plan for more connections
-- Enable read replicas
-- Optimize queries for performance
-
-### Frontend Scaling
-
-**Vercel:**
-- Automatic CDN distribution
-- Edge caching
-- No configuration needed
+# Restore
+psql -h hostname -U username -d luxestay_db < backup.sql
+```
 
 ---
 
-## Security Best Practices
+## Security Checklist
 
-1. **Environment Variables:** Never commit secrets to Git
-2. **HTTPS:** Ensure all services use HTTPS
-3. **JWT Secret:** Use strong, random secret (256+ bits)
-4. **Database:** Use connection pooling and prepared statements
-5. **S3:** Limit public access to read-only
-6. **CORS:** Restrict to specific origins in production
-7. **Rate Limiting:** Implement API rate limiting (future enhancement)
-
----
-
-## Rollback Strategy
-
-### Backend Rollback (Render)
-
-1. Go to Render dashboard
-2. Navigate to service
-3. Click "Deploys"
-4. Select previous successful deployment
-5. Click "Redeploy"
-
-### Frontend Rollback (Vercel)
-
-1. Go to Vercel dashboard
-2. Navigate to project
-3. Click "Deployments"
-4. Find previous deployment
-5. Click "..." → "Promote to Production"
+- [ ] HTTPS enabled on all services
+- [ ] Strong JWT secret (256+ bits)
+- [ ] Database password is secure and not committed
+- [ ] CORS configured for production domains only
+- [ ] Stripe using production keys (sk_live_)
+- [ ] All API keys secured as environment variables
+- [ ] Regular backups configured
 
 ---
 
 ## Troubleshooting
 
-### Backend Issues
+### Backend Not Starting
 
-**Cold Start Delays:**
-- Render free tier has cold starts (~1 minute)
-- Upgrade to paid tier for always-on instances
+1. Check logs: `sudo journalctl -u luxestay -n 100`
+2. Verify database connection
+3. Ensure all environment variables are set
 
-**Database Connection Errors:**
-- Verify connection string
-- Check NeonDB connection limits
-- Review connection pool settings
+### CORS Errors
 
-**Out of Memory:**
-- Increase Render instance size
-- Optimize JVM heap settings
+1. Verify frontend domain is in allowed origins
+2. Check if backend is actually running
+3. Try clearing browser cache
 
-### Frontend Issues
+### Database Connection Issues
 
-**Build Failures:**
-- Check build logs in Vercel
-- Verify all dependencies are in `package.json`
-- Clear Vercel cache and rebuild
+1. Verify database is running
+2. Check connection string format
+3. Ensure SSL mode is correct
+4. Verify firewall allows connection
 
-**API Connection Issues:**
-- Verify backend URL in `api.ts`
-- Check CORS configuration
-- Review browser console for errors
+### Cloudinary Upload Fails
 
----
+1. Verify API credentials
+2. Check file size limits
+3. Ensure file format is supported
 
-## Cost Optimization
+### Stripe Payment Fails
 
-### Free Tier Limits
-
-- **Vercel:** 100 GB bandwidth/month
-- **Render:** 750 hours/month (free tier)
-- **NeonDB:** 3 GB storage, 1 database
-- **AWS S3:** 5 GB storage, 20,000 GET requests
-
-### Recommendations
-
-1. Monitor usage regularly
-2. Implement image optimization
-3. Use CDN caching effectively
-4. Clean up unused S3 objects
-5. Optimize database queries
+1. Verify using correct keys (test vs live)
+2. Check Stripe dashboard for error logs
+3. Ensure webhook endpoints are configured (if used)
 
 ---
 
-## Additional Resources
+## Scaling Considerations
 
-- [Vercel Documentation](https://vercel.com/docs)
-- [Render Documentation](https://render.com/docs)
-- [NeonDB Documentation](https://neon.tech/docs)
-- [AWS S3 Documentation](https://docs.aws.amazon.com/s3/)
+### Horizontal Scaling
+
+- Use load balancer (Nginx, HAProxy)
+- Run multiple backend instances
+- Use sticky sessions or stateless JWT
+
+### Database Scaling
+
+- Enable connection pooling (HikariCP configured by default)
+- Add read replicas for heavy read workloads
+- Consider database caching (Redis)
+
+### CDN
+
+- Use Cloudinary's built-in CDN for images
+- Consider CDN for static frontend assets
 
 ---
 
-## Support
+## Deployment Checklist
 
-For deployment issues:
-1. Check service status pages
-2. Review deployment logs
-3. Consult documentation
-4. Contact support teams
-
----
-
-## Checklist
-
-- [ ] NeonDB database created and configured
-- [ ] AWS S3 bucket created with proper permissions
-- [ ] Backend deployed to Render with environment variables
-- [ ] Frontend deployed to Vercel
+- [ ] Database deployed and accessible
+- [ ] Cloudinary account configured
+- [ ] Stripe account configured (with correct keys)
+- [ ] Gemini API key obtained
+- [ ] Backend deployed with all environment variables
+- [ ] Frontend built with production API URL
+- [ ] Frontend deployed to hosting
 - [ ] CORS configured correctly
+- [ ] HTTPS enabled
 - [ ] Health checks passing
-- [ ] Test user registration and login
-- [ ] Test room booking flow
-- [ ] Admin functions working
-- [ ] Monitoring and alerts set up
-- [ ] Backup strategy in place
+- [ ] Backups configured
+- [ ] Monitoring set up
 
 ---
 

@@ -2,7 +2,7 @@
 
 **LuxeStay Hub** is a premium, full-stack hotel management and booking platform designed to deliver a seamless experience for guests and efficient operations for hotel managers.
 
-Powered by **Java Spring Boot** and **React**, it features a robust booking engine, secure payments, and an intelligent **AI Concierge** built with **Gemini API** and **LangChain** to assist guests in real-time.
+Powered by **Java Spring Boot** and **React (Vite)**, it features a robust booking engine, secure payments via **Stripe**, and an intelligent **AI Concierge** powered by **Google Gemini API** to assist guests in real-time.
 
 ---
 
@@ -13,17 +13,19 @@ Powered by **Java Spring Boot** and **React**, it features a robust booking engi
 *   **Language:** Java 21
 *   **Database:** PostgreSQL
 *   **Security:** Spring Security & JWT (JSON Web Tokens)
-*   **AI & ML:** Google Gemini API integrated with **LangChain** for context-aware chat
-*   **Payments:** Stripe API
-*   **Image Storage:** Cloudinary
+*   **AI Integration:** Google Gemini API for intelligent chatbot & room recommendations
+*   **Payments:** Stripe API for secure payment processing
+*   **Image Storage:** Cloudinary for media management
 *   **Build Tool:** Maven
 
 ### **Frontend**
-*   **Framework:** React (Vite)
-*   **Styling:** Custom CSS / Styled Components
+*   **Framework:** React 18+ with Vite
+*   **Language:** TypeScript
+*   **Routing:** React Router DOM (HashRouter)
+*   **Styling:** Custom CSS
 *   **Icons:** Lucide React
 *   **State Management:** React Context API
-*   **HTTP Client:** Fetch API / Axios
+*   **HTTP Client:** Fetch API
 
 ### **Deployment**
 *   **Platform:** Hostinger (VPS / Cloud Hosting)
@@ -33,7 +35,8 @@ Powered by **Java Spring Boot** and **React**, it features a robust booking engi
 
 ## ✨ Key Features
 
-*   **🤖 AI Concierge (LangChain + Gemini):** Smart chatbot that answers guest queries about amenities, policies, and room recommendations.
+*   **🤖 AI Concierge (Gemini):** Smart chatbot that answers guest queries about amenities, policies, and provides personalized room recommendations.
+*   **🔍 AI Room Finder:** Natural language room search - describe your ideal stay and get AI-powered recommendations with match scores.
 *   **📅 Smart Booking System:** Real-time availability checks, date selection, and instant booking confirmation.
 *   **💳 Secure Payments:** Integrated Stripe payment gateway for safe and easy transactions.
 *   **🛡️ Role-Based Access:**
@@ -46,28 +49,28 @@ Powered by **Java Spring Boot** and **React**, it features a robust booking engi
 
 ## 🛠️ Environment Variables
 
-Create a `.env` file in the `backend/src/main/resources/` directory (or root depending on setup) with the following:
+Create an `application.properties` file in `backend/src/main/resources/` with the following:
 
 ```properties
 # Database Configuration
-DB_URL=jdbc:postgresql://localhost:5432/luxestay_db
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
+spring.datasource.url=jdbc:postgresql://localhost:5432/luxestay_db
+spring.datasource.username=your_db_user
+spring.datasource.password=your_db_password
 
 # JWT Security
-JWT_SECRET=your_super_secret_jwt_key_must_be_long_enough
-JWT_EXPIRATION=86400000
+jwt.secret=your_super_secret_jwt_key_must_be_long_enough
+jwt.expiration=86400000
 
-# AWS / Cloudinary (Image Storage)
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
+# Cloudinary (Image Storage)
+cloudinary.cloud-name=your_cloud_name
+cloudinary.api-key=your_api_key
+cloudinary.api-secret=your_api_secret
 
 # Google Gemini AI
-GEMINI_API_KEY=your_gemini_api_key
+gemini.api.key=your_gemini_api_key
 
 # Stripe Payments
-STRIPE_SECRET_KEY=your_stripe_secret_key
+stripe.secret.key=your_stripe_secret_key
 ```
 
 ---
@@ -90,7 +93,37 @@ npm install
 # Start development server
 npm run dev
 ```
-The frontend will start on `http://localhost:5173` (or similar).
+The frontend will start on `http://localhost:5173`.
+
+---
+
+## 📁 Project Structure
+
+```
+LuxeStay-Hub/
+├── backend/                    # Spring Boot Backend
+│   ├── src/main/java/
+│   │   └── com/sanjo/backend/
+│   │       ├── controller/     # REST API Controllers
+│   │       ├── service/        # Business Logic
+│   │       ├── repository/     # Data Access Layer
+│   │       ├── entity/         # JPA Entities
+│   │       ├── dto/            # Data Transfer Objects
+│   │       ├── security/       # JWT & Security Config
+│   │       └── config/         # App Configuration
+│   └── src/main/resources/     # Properties & Config
+├── frontend/                   # React Frontend
+│   ├── src/
+│   │   ├── components/         # Reusable UI Components
+│   │   ├── pages/              # Page Components
+│   │   ├── services/           # API Service Layer
+│   │   ├── context/            # React Context
+│   │   ├── types/              # TypeScript Types
+│   │   └── constants/          # App Constants
+│   └── public/                 # Static Assets
+├── docs/                       # Documentation
+└── docker-compose.yml          # Docker Configuration
+```
 
 ---
 
@@ -102,4 +135,11 @@ Contributions are welcome! Please fork the repository and submit a pull request.
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👨‍💻 Author
+
+**Aryan Sharma**
+- GitHub: [@myselfaryan](https://github.com/myselfaryan)

@@ -19,12 +19,12 @@ Before you begin, ensure you have the following installed:
 
 ### Frontend Requirements
 
-- **Node.js 16+** and **npm 8+**
+- **Node.js 18+** and **npm 9+**
   - Download from: https://nodejs.org/
   - Verify installation: 
     ```bash
-    node -version
-    npm -version
+    node -v
+    npm -v
     ```
 
 ### Optional Tools
@@ -41,7 +41,7 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Skywalker690/LuxeStay-Hub.git
+git clone https://github.com/myselfaryan/LuxeStay-Hub.git
 cd LuxeStay-Hub
 ```
 
@@ -57,24 +57,38 @@ cd backend
 
 ### 2. Configure Environment Variables
 
-Create a `.env` file in the `backend` directory:
+Create or update `application.properties` in `backend/src/main/resources/`:
 
-```env
+```properties
+# Server Configuration
+server.port=8080
+
 # Database Configuration
-DB_URL=jdbc:postgresql://localhost:5432/luxestay_db
-DB_USER=postgres
-DB_PASSWORD=your_postgres_password
+spring.datasource.url=jdbc:postgresql://localhost:5432/luxestay_db
+spring.datasource.username=postgres
+spring.datasource.password=your_postgres_password
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# JPA/Hibernate
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
 
 # JWT Configuration
-JWT_SECRET=your_super_secret_jwt_key_here_make_it_long_and_random
+jwt.secret=your_super_secret_jwt_key_here_make_it_long_and_random_at_least_256_bits
+jwt.expiration=604800000
 
-# AWS S3 Configuration (Optional for local dev)
-AWS_ACCESS_KEY=your_aws_access_key
-AWS_SECRET_KEY=your_aws_secret_key
-BUCKET_NAME=your_s3_bucket_name
+# Cloudinary Configuration
+cloudinary.cloud-name=your_cloud_name
+cloudinary.api-key=your_api_key
+cloudinary.api-secret=your_api_secret
+
+# Google Gemini AI Configuration
+gemini.api.key=your_gemini_api_key
+
+# Stripe Payment Configuration
+stripe.secret.key=your_stripe_secret_key
 ```
-
-**Note:** For local development without AWS S3, you can skip the AWS configuration. The application will store image URLs as null or placeholder values.
 
 ### 3. Set Up Local Database
 
@@ -85,7 +99,7 @@ BUCKET_NAME=your_s3_bucket_name
    ```sql
    CREATE DATABASE luxestay_db;
    ```
-3. Update `.env` with your PostgreSQL credentials
+3. Update `application.properties` with your PostgreSQL credentials
 
 #### Option B: Using Docker
 
@@ -96,6 +110,11 @@ docker run --name luxestay-postgres \
   -e POSTGRES_PASSWORD=your_password \
   -p 5432:5432 \
   -d postgres:14
+```
+
+Or use the provided docker-compose:
+```bash
+docker-compose up -d
 ```
 
 ### 4. Build the Project
@@ -123,20 +142,11 @@ The backend will start on `http://localhost:8080`
 curl http://localhost:8080/rooms/all
 ```
 
-### 6. Database Schema & Sample Data
+### 6. Database Schema
 
 Spring Boot will automatically:
 1. Create the database schema on first run using JPA/Hibernate
-2. Populate the database with sample data from `data.sql`
-
-**Sample data includes:**
-- Demo users (demouser@gmail.com, admin@luxestay.com)
-- Sample rooms (Standard, Deluxe, Suite, Presidential)
-- Example bookings
-
-**Default password for all demo users:** `password123`
-
-**Note:** The `data.sql` file is located at `backend/src/main/resources/data.sql` and runs automatically on startup.
+2. Apply any pending migrations
 
 ---
 
@@ -158,21 +168,21 @@ This will install all required packages defined in `package.json`.
 
 ### 3. Configure API Base URL
 
-The frontend automatically detects if you're running locally and uses `http://localhost:8080` for API calls.
-
-If you need to override this, edit `src/services/api.ts`:
+The API base URL is configured in `src/constants/index.ts`:
 
 ```typescript
-export const API_BASE_URL = "http://localhost:8080";
+export const API_BASE_URL = 'http://localhost:8080';
 ```
+
+For production, update this to your deployed backend URL.
 
 ### 4. Start Development Server
 
 ```bash
-npm start
+npm run dev
 ```
 
-The frontend will start on `http://localhost:3000` and automatically open in your browser.
+The frontend will start on `http://localhost:5173` (Vite default port).
 
 ### 5. Build for Production
 
@@ -182,7 +192,12 @@ To create an optimized production build:
 npm run build
 ```
 
-Build output will be in the `build/` directory.
+Build output will be in the `dist/` directory.
+
+To preview the production build:
+```bash
+npm run preview
+```
 
 ---
 
@@ -202,11 +217,6 @@ cd frontend
 npm test
 ```
 
-For test coverage:
-```bash
-npm test -- --coverage
-```
-
 ---
 
 ## Development Workflow
@@ -222,35 +232,28 @@ cd backend
 **Terminal 2 - Frontend:**
 ```bash
 cd frontend
-npm start
+npm run dev
 ```
 
 ### 2. Making Changes
 
-- **Backend changes:** Spring Boot DevTools will auto-reload (included in dependencies)
-- **Frontend changes:** React hot-reload is enabled by default
+- **Backend changes:** Spring Boot DevTools will auto-reload (if included in dependencies)
+- **Frontend changes:** Vite HMR provides instant updates
 
 ### 3. API Testing
 
-Use the following test credentials:
+Use the following test credentials after creating accounts:
 
 **Demo User:**
-- Email: `demouser@gmail.com`
-- Password: `demouser`
+- Email: `user@example.com`
+- Password: `password123`
 - Role: USER
 
 **Demo Admin:**
-Create an admin user by manually updating the database or through registration and manual role update:
+Create an admin user by registering and then manually updating the database:
 ```sql
 UPDATE users SET role = 'ADMIN' WHERE email = 'your_admin@email.com';
 ```
-
-### 4. Sample Booking Confirmation Codes
-
-Test the "Find Booking" feature with these codes:
-- `MFST1FUDJZ`
-- `JR5K5NVT1G`
-- `OY3OJBOXR8`
 
 ---
 
@@ -259,13 +262,14 @@ Test the "Find Booking" feature with these codes:
 ### Adding a New Entity
 
 1. Create entity class in `backend/src/main/java/com/sanjo/backend/entity/`
-2. Create repository interface
-3. Create DTO class
-4. Create service interface and implementation
-5. Create controller endpoints
-6. Add TypeScript types in `frontend/src/types/`
-7. Create API service functions
-8. Build UI components
+2. Create repository interface in `repository/`
+3. Create DTO class in `dto/`
+4. Create service interface in `service/interfac/`
+5. Create service implementation in `service/implementation/`
+6. Create controller endpoints in `controller/`
+7. Add TypeScript types in `frontend/src/types/`
+8. Create API service functions in `apiService.ts`
+9. Build UI components
 
 ### Adding a New Page
 
@@ -274,12 +278,44 @@ Test the "Find Booking" feature with these codes:
 3. Add navigation link in `Navbar.tsx`
 4. Create necessary API calls
 
-### Database Migrations
+### Adding a New API Endpoint
 
-For schema changes:
-1. Update entity classes
-2. For production, use Flyway or Liquibase (not currently configured)
-3. For development, JPA auto-update handles it
+1. Add method to appropriate controller
+2. Implement business logic in service
+3. Add corresponding frontend API method
+4. Update API documentation
+
+---
+
+## External Services Setup
+
+### Cloudinary (Image Storage)
+
+1. Create account at https://cloudinary.com/
+2. Get your cloud name, API key, and API secret from the dashboard
+3. Add to `application.properties`:
+   ```properties
+   cloudinary.cloud-name=your_cloud_name
+   cloudinary.api-key=your_api_key
+   cloudinary.api-secret=your_api_secret
+   ```
+
+### Google Gemini AI
+
+1. Get API key from https://ai.google.dev/
+2. Add to `application.properties`:
+   ```properties
+   gemini.api.key=your_gemini_api_key
+   ```
+
+### Stripe Payments
+
+1. Create account at https://stripe.com/
+2. Get your secret key from the dashboard (use test key for development)
+3. Add to `application.properties`:
+   ```properties
+   stripe.secret.key=sk_test_xxxxxxxxxxxx
+   ```
 
 ---
 
@@ -297,11 +333,11 @@ kill -9 <PID>
 
 **Problem:** Database connection failed
 - Verify PostgreSQL is running
-- Check database credentials in `.env`
+- Check database credentials in `application.properties`
 - Ensure database exists: `CREATE DATABASE luxestay_db;`
 
 **Problem:** JWT token errors
-- Ensure `JWT_SECRET` is set in `.env`
+- Ensure `jwt.secret` is set in `application.properties`
 - Secret should be at least 256 bits (32 characters)
 
 **Problem:** Maven build fails
@@ -309,6 +345,11 @@ kill -9 <PID>
 # Clean and rebuild
 ./mvnw clean install -U
 ```
+
+**Problem:** Cloudinary/Gemini/Stripe errors
+- Verify API keys are correct
+- Check internet connectivity
+- Review service-specific error messages in logs
 
 ### Frontend Issues
 
@@ -322,21 +363,21 @@ rm -rf node_modules package-lock.json
 npm install
 ```
 
-**Problem:** Port 3000 already in use
+**Problem:** Port 5173 already in use
 ```bash
-# Kill process on port 3000
-lsof -i :3000
+# Kill process on port 5173
+lsof -i :5173
 kill -9 <PID>
 ```
 
 **Problem:** API calls failing
 - Verify backend is running on port 8080
 - Check browser console for CORS errors
-- Verify API_BASE_URL in `api.ts`
+- Verify API_BASE_URL in `constants/index.ts`
 
 **Problem:** TypeScript errors
 ```bash
-# Rebuild TypeScript
+# Check for type errors
 npm run build
 ```
 
@@ -361,6 +402,7 @@ npm run build
 - ESLint
 - Prettier
 - TypeScript and JavaScript Language Features
+- Vite
 
 **Backend Configuration:**
 Create `.vscode/settings.json`:
@@ -375,52 +417,25 @@ Create `.vscode/settings.json`:
 
 ## Environment Variables Reference
 
-### Backend (.env)
+### Backend (application.properties)
 
 | Variable | Description | Required | Example |
 |----------|-------------|----------|---------|
-| DB_URL | PostgreSQL connection URL | Yes | jdbc:postgresql://localhost:5432/luxestay_db |
-| DB_USER | Database username | Yes | postgres |
-| DB_PASSWORD | Database password | Yes | mypassword |
-| JWT_SECRET | Secret key for JWT tokens | Yes | my_secret_key_256_bits_long |
-| AWS_ACCESS_KEY | AWS access key for S3 | No | AKIAIOSFODNN7EXAMPLE |
-| AWS_SECRET_KEY | AWS secret key for S3 | No | wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY |
-| BUCKET_NAME | S3 bucket name | No | luxestay-hub-images |
+| spring.datasource.url | PostgreSQL connection URL | Yes | jdbc:postgresql://localhost:5432/luxestay_db |
+| spring.datasource.username | Database username | Yes | postgres |
+| spring.datasource.password | Database password | Yes | mypassword |
+| jwt.secret | Secret key for JWT tokens | Yes | my_secret_key_256_bits_long |
+| cloudinary.cloud-name | Cloudinary cloud name | Yes | my-cloud |
+| cloudinary.api-key | Cloudinary API key | Yes | 123456789 |
+| cloudinary.api-secret | Cloudinary API secret | Yes | abcdefghijk |
+| gemini.api.key | Google Gemini API key | Yes | AIzaSy... |
+| stripe.secret.key | Stripe secret key | Yes | sk_test_... |
 
 ### Frontend
 
-No environment variables required for local development. The API URL is automatically detected.
-
----
-
-## Database Seeding
-
-The database is **automatically seeded** with sample data on application startup using the `data.sql` file.
-
-**Location:** `backend/src/main/resources/data.sql`
-
-**What's included:**
-- 5 demo users (including demouser@gmail.com and admin@luxestay.com)
-- 10 sample rooms (Standard, Deluxe, Suite, Presidential)
-- 7 example bookings (active and past)
-
-**All demo users have the password:** `password123`
-
-**To disable automatic seeding:**
-```properties
-# In application.properties
-spring.sql.init.mode=never
-```
-
-**To manually re-seed:**
-```bash
-psql -U postgres -d luxestay_db -f backend/src/main/resources/data.sql
-```
-
-**Sample booking confirmation codes for testing:**
-- `MFST1FUDJZ`
-- `JR5K5NVT1G`
-- `OY3OJBOXR8`
+| Variable | Description | File |
+|----------|-------------|------|
+| API_BASE_URL | Backend API URL | src/constants/index.ts |
 
 ---
 
@@ -440,6 +455,6 @@ After setting up the development environment:
 - Check existing issues on GitHub
 - Review troubleshooting section
 - Contact the development team
-- Consult Spring Boot and React documentation
+- Consult Spring Boot, React, and Vite documentation
 
 Happy coding! 🚀

@@ -80,8 +80,7 @@ CREATE TABLE users (
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     phone_number VARCHAR(20),
-    role VARCHAR(50) NOT NULL DEFAULT 'USER',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    role VARCHAR(50) NOT NULL DEFAULT 'USER'
 );
 
 CREATE INDEX idx_users_email ON users(email);
@@ -114,8 +113,14 @@ Stores hotel room information including type, pricing, and descriptions.
 | id             | BIGSERIAL     | PRIMARY KEY     | Unique room identifier         |
 | room_type      | VARCHAR(100)  | NOT NULL        | Type of room (e.g., Deluxe)    |
 | room_price     | DECIMAL(10,2) | NOT NULL        | Price per night                |
-| room_photo_url | TEXT          | NULL            | AWS S3 URL for room image      |
+| room_photo_url | TEXT          | NULL            | Cloudinary URL for room image  |
 | room_description| TEXT         | NULL            | Detailed room description      |
+
+**Room Types:**
+- Single
+- Double
+- Deluxe Suite
+- Presidential Suite
 
 **Indexes:**
 - Primary key on `id`
@@ -128,9 +133,7 @@ CREATE TABLE room (
     room_type VARCHAR(100) NOT NULL,
     room_price DECIMAL(10,2) NOT NULL CHECK (room_price > 0),
     room_photo_url TEXT,
-    room_description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    room_description TEXT
 );
 
 CREATE INDEX idx_room_type ON room(room_type);
@@ -140,16 +143,16 @@ CREATE INDEX idx_room_price ON room(room_price);
 **Example Data:**
 ```sql
 INSERT INTO room (room_type, room_price, room_photo_url, room_description) VALUES
-('Standard', 100.00, 'https://s3.amazonaws.com/bucket/standard.jpg', 'Comfortable room with basic amenities'),
-('Deluxe', 150.00, 'https://s3.amazonaws.com/bucket/deluxe.jpg', 'Spacious room with premium amenities'),
-('Suite', 250.00, 'https://s3.amazonaws.com/bucket/suite.jpg', 'Luxurious suite with separate living area'),
-('Presidential', 500.00, 'https://s3.amazonaws.com/bucket/presidential.jpg', 'Top-tier suite with exclusive services');
+('Single', 80.00, 'https://res.cloudinary.com/.../single.jpg', 'Cozy single room with basic amenities'),
+('Double', 120.00, 'https://res.cloudinary.com/.../double.jpg', 'Comfortable double room for couples'),
+('Deluxe Suite', 200.00, 'https://res.cloudinary.com/.../deluxe.jpg', 'Spacious suite with premium amenities'),
+('Presidential Suite', 500.00, 'https://res.cloudinary.com/.../presidential.jpg', 'Luxury suite with exclusive services');
 ```
 
 **Notes:**
 - Room types are not enforced by database constraints
 - Price must be greater than 0
-- Photo URL can be null if no image is uploaded
+- Photo URL can be null if no image is uploaded (handled by Cloudinary)
 - Multiple rooms can have the same type
 
 ---
@@ -190,7 +193,6 @@ CREATE TABLE booking (
     booking_confirmation_code VARCHAR(50) NOT NULL UNIQUE,
     user_id BIGINT NOT NULL,
     room_id BIGINT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (room_id) REFERENCES room(id) ON DELETE CASCADE,
     CHECK (check_out_date > check_in_date)
@@ -208,8 +210,8 @@ INSERT INTO booking (
     check_in_date, check_out_date, num_of_adults, num_of_children, 
     total_num_of_guest, booking_confirmation_code, user_id, room_id
 ) VALUES
-('2025-11-01', '2025-11-05', 2, 1, 3, 'MFST1FUDJZ', 1, 1),
-('2025-11-10', '2025-11-15', 2, 0, 2, 'JR5K5NVT1G', 1, 2),
+('2025-12-01', '2025-12-05', 2, 1, 3, 'MFST1FUDJZ', 1, 1),
+('2025-12-10', '2025-12-15', 2, 0, 2, 'JR5K5NVT1G', 1, 2),
 ('2025-12-20', '2025-12-25', 4, 2, 6, 'OY3OJBOXR8', 2, 3);
 ```
 
@@ -294,7 +296,7 @@ SELECT * FROM users WHERE email = 'john@example.com';
 SELECT r.* FROM room r
 WHERE r.id NOT IN (
     SELECT DISTINCT b.room_id FROM booking b
-    WHERE (b.check_in_date < '2025-11-05' AND b.check_out_date > '2025-11-01')
+    WHERE (b.check_in_date < '2025-12-05' AND b.check_out_date > '2025-12-01')
 );
 ```
 
@@ -440,80 +442,9 @@ psql -h hostname -U username -d luxestay_db < users_backup.sql
 
 ---
 
-## Data Seeding
-
-### Automatic Seeding with data.sql
-
-The project includes a `data.sql` file at `backend/src/main/resources/data.sql` that automatically populates the database with sample data on application startup.
-
-**Location:** `backend/src/main/resources/data.sql`
-
-**Features:**
-- Pre-configured demo users (USER and ADMIN roles)
-- Sample rooms (Standard, Deluxe, Suite, Presidential)
-- Example bookings for testing
-- All passwords are BCrypt hashed (default: "password123")
-
-**Configuration:**
-```properties
-# application.properties
-spring.sql.init.mode=always
-spring.jpa.defer-datasource-initialization=true
-```
-
-**Demo Credentials:**
-- Email: `demouser@gmail.com` | Password: `password123` | Role: USER
-- Email: `admin@luxestay.com` | Password: `password123` | Role: ADMIN
-
-**Sample Booking Codes:**
-- `MFST1FUDJZ`
-- `JR5K5NVT1G`
-- `OY3OJBOXR8`
-
-### Manual Seed Script
-
-If you need to manually seed the database:
-
-```bash
-# Using psql
-psql -h hostname -U username -d luxestay_db < backend/src/main/resources/data.sql
-
-# Or connect and run manually
-psql -h hostname -U username -d luxestay_db
-\i backend/src/main/resources/data.sql
-```
-
-### Seed Data Contents
-
-```sql
--- Seed users (password: password123)
-INSERT INTO users (name, email, password, phone_number, role) VALUES
-('Demo User', 'demouser@gmail.com', '$2a$10$8ZqvfG.fCvJvJqP3TvQFqO8JQxmxQZ8vY/YT7wJQZqLdVXvI9rTy6', '+1234567890', 'USER'),
-('Admin User', 'admin@luxestay.com', '$2a$10$8ZqvfG.fCvJvJqP3TvQFqO8JQxmxQZ8vY/YT7wJQZqLdVXvI9rTy6', '+0987654321', 'ADMIN');
-
--- Seed rooms
-INSERT INTO room (room_type, room_price, room_photo_url, room_description) VALUES
-('Standard', 100.00, NULL, 'Comfortable room with basic amenities'),
-('Deluxe', 150.00, NULL, 'Spacious room with premium amenities'),
-('Suite', 250.00, NULL, 'Luxurious suite with separate living area'),
-('Presidential', 500.00, NULL, 'Top-tier suite with exclusive services');
-
--- Seed bookings
-INSERT INTO bookings (
-    check_in_date, check_out_date, num_of_adult, num_of_children,
-    total_num_of_guest, booking_confirmation_code, user_id, room_id
-) VALUES
-('2025-11-01', '2025-11-05', 2, 1, 3, 'MFST1FUDJZ', 1, 1),
-('2025-11-10', '2025-11-15', 2, 0, 2, 'JR5K5NVT1G', 1, 4);
-```
-
-**Note:** See the full `data.sql` file for complete seed data including additional users, rooms, and bookings.
-
----
-
 ## Security Considerations
 
-1. **Password Storage:** Always hash passwords (BCrypt, Argon2)
+1. **Password Storage:** Always hash passwords (BCrypt)
 2. **SQL Injection:** Use prepared statements (JPA handles this)
 3. **Access Control:** Implement proper authorization at application layer
 4. **Data Encryption:** Use SSL/TLS for database connections
@@ -580,7 +511,7 @@ Potential schema improvements:
 
 1. **Reviews Table** - Store user reviews for rooms
 2. **Amenities Table** - Track room amenities separately
-3. **Payments Table** - Store payment transaction details
+3. **Payments Table** - Store payment transaction details (Stripe)
 4. **Notifications Table** - Store email/SMS notifications
 5. **Audit Log** - Track all changes to critical data
 

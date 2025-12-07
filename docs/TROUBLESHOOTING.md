@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide helps you diagnose and resolve common issues in the LuxeStay Hub application.
+This guide helps you diagnose and resolve common issues with the LuxeStay Hub application. Issues are organized by category for easy navigation.
 
 ---
 
@@ -12,811 +12,667 @@ This guide helps you diagnose and resolve common issues in the LuxeStay Hub appl
 2. [Frontend Issues](#frontend-issues)
 3. [Database Issues](#database-issues)
 4. [Authentication Issues](#authentication-issues)
-5. [Deployment Issues](#deployment-issues)
-6. [Performance Issues](#performance-issues)
+5. [External Services Issues](#external-services-issues)
+6. [Deployment Issues](#deployment-issues)
 7. [Common Error Messages](#common-error-messages)
+8. [Debug Logging](#debug-logging)
 
 ---
 
 ## Backend Issues
 
-### Issue: Application Won't Start
+### Application Won't Start
 
-**Symptoms:**
-- Spring Boot application fails to start
-- Error in console logs
+**Symptom:** Spring Boot application fails to start
 
-**Possible Causes & Solutions:**
+**Common Causes & Solutions:**
 
-#### 1. Port 8080 Already in Use
+1. **Port Already in Use**
+   ```
+   Error: Web server failed to start. Port 8080 was already in use.
+   ```
+   
+   **Solution:**
+   ```bash
+   # Find process using port 8080
+   lsof -i :8080
+   # Kill the process
+   kill -9 <PID>
+   
+   # Or use a different port in application.properties
+   server.port=8081
+   ```
 
-**Error:**
-```
-Web server failed to start. Port 8080 was already in use.
-```
+2. **Database Connection Failed**
+   ```
+   Error: Unable to acquire JDBC Connection
+   ```
+   
+   **Solution:**
+   - Verify PostgreSQL is running: `pg_isready`
+   - Check credentials in `application.properties`
+   - Ensure database exists: `psql -c "\l" | grep luxestay_db`
 
-**Solution:**
-```bash
-# Find process using port 8080
-lsof -i :8080
-# Or on Windows
-netstat -ano | findstr :8080
+3. **Missing Environment Variables**
+   ```
+   Error: Could not resolve placeholder 'jwt.secret'
+   ```
+   
+   **Solution:**
+   - Ensure all required properties are set in `application.properties`
+   - Check for typos in property names
 
-# Kill the process
-kill -9 <PID>
-# Or on Windows
-taskkill /PID <PID> /F
+4. **Java Version Mismatch**
+   ```
+   Error: UnsupportedClassVersionError
+   ```
+   
+   **Solution:**
+   ```bash
+   java -version  # Should be 21+
+   # Install Java 21 if needed
+   ```
 
-# Alternative: Change application port
-# In application.properties:
-server.port=8081
-```
+### Maven Build Fails
 
-#### 2. Database Connection Failed
+**Symptom:** `./mvnw clean install` fails
 
-**Error:**
-```
-Failed to configure a DataSource
-Connection to localhost:5432 refused
-```
+**Solutions:**
 
-**Solution:**
-```bash
-# Check if PostgreSQL is running
-pg_isready
+1. **Clear Maven Cache**
+   ```bash
+   rm -rf ~/.m2/repository
+   ./mvnw clean install -U
+   ```
 
-# Start PostgreSQL
-# macOS: brew services start postgresql
-# Ubuntu: sudo service postgresql start
-# Windows: Check Services panel
+2. **Skip Tests Temporarily**
+   ```bash
+   ./mvnw clean install -DskipTests
+   ```
 
-# Verify database exists
-psql -U postgres -l
+3. **Check for Dependency Conflicts**
+   ```bash
+   ./mvnw dependency:tree
+   ```
 
-# Create database if missing
-psql -U postgres -c "CREATE DATABASE luxestay_db;"
+### API Returns 500 Error
 
-# Check .env file has correct credentials
-DB_URL=jdbc:postgresql://localhost:5432/luxestay_db
-DB_USER=postgres
-DB_PASSWORD=your_password
-```
+**Symptom:** Internal Server Error on API calls
 
-#### 3. Missing Environment Variables
+**Debugging Steps:**
 
-**Error:**
-```
-Could not resolve placeholder 'JWT_SECRET'
-```
+1. Check application logs:
+   ```bash
+   # If running directly
+   tail -f logs/application.log
+   
+   # If using systemd
+   sudo journalctl -u luxestay -f
+   ```
 
-**Solution:**
-```bash
-# Ensure .env file exists in backend directory
-cd backend
-ls -la .env
+2. Enable debug logging in `application.properties`:
+   ```properties
+   logging.level.com.sanjo.backend=DEBUG
+   logging.level.org.springframework.web=DEBUG
+   ```
 
-# Create .env file if missing
-cp .env.example .env
-
-# Edit and add required values
-nano .env
-
-# Verify environment variables are loaded
-# Add to application.properties if needed
-spring.config.import=optional:file:.env[.properties]
-```
-
-#### 4. Maven Build Errors
-
-**Error:**
-```
-Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin
-```
-
-**Solution:**
-```bash
-# Clean and rebuild
-./mvnw clean install
-
-# Update dependencies
-./mvnw clean install -U
-
-# Skip tests if needed (not recommended)
-./mvnw clean install -DskipTests
-
-# Check Java version
-java -version
-# Should be Java 21 or higher
-
-# If wrong Java version, set JAVA_HOME
-export JAVA_HOME=/path/to/jdk-21
-```
-
-#### 5. Lombok Not Working
-
-**Error:**
-```
-Cannot resolve method 'getName' in 'User'
-```
-
-**Solution:**
-```bash
-# For IntelliJ IDEA:
-# 1. Install Lombok plugin
-# 2. Enable annotation processing:
-#    Settings → Build → Compiler → Annotation Processors
-#    Check "Enable annotation processing"
-
-# For VS Code:
-# Install "Lombok Annotations Support for VS Code"
-
-# Verify Lombok dependency in pom.xml
-# Should have:
-<dependency>
-    <groupId>org.projectlombok</groupId>
-    <artifactId>lombok</artifactId>
-</dependency>
-
-# Rebuild project
-./mvnw clean install
-```
+3. Common causes:
+   - NullPointerException - check for null values
+   - Database constraint violations
+   - External service failures (Cloudinary, Gemini, Stripe)
 
 ---
 
 ## Frontend Issues
 
-### Issue: Application Won't Start
+### npm install Fails
 
-#### 1. Port 3000 Already in Use
+**Symptom:** Dependency installation errors
 
-**Error:**
-```
-Something is already running on port 3000
-```
+**Solutions:**
 
-**Solution:**
-```bash
-# Find and kill process on port 3000
-lsof -i :3000
-kill -9 <PID>
+1. **Clear npm Cache**
+   ```bash
+   npm cache clean --force
+   rm -rf node_modules package-lock.json
+   npm install
+   ```
 
-# Or on Windows
-netstat -ano | findstr :3000
-taskkill /PID <PID> /F
+2. **Use Different Node Version**
+   ```bash
+   nvm use 18
+   npm install
+   ```
 
-# Or use different port
-PORT=3001 npm start
-```
+3. **Check for Conflicting Dependencies**
+   ```bash
+   npm ls
+   ```
 
-#### 2. npm install Fails
+### Vite Dev Server Won't Start
 
-**Error:**
-```
-npm ERR! code ERESOLVE
-npm ERR! ERESOLVE unable to resolve dependency tree
-```
+**Symptom:** `npm run dev` fails
 
-**Solution:**
-```bash
-# Clear npm cache
-npm cache clean --force
+**Solutions:**
 
-# Delete node_modules and package-lock.json
-rm -rf node_modules package-lock.json
+1. **Port Already in Use**
+   ```bash
+   # Kill process on port 5173
+   lsof -i :5173
+   kill -9 <PID>
+   
+   # Or use different port
+   npm run dev -- --port 3000
+   ```
 
-# Try legacy peer deps
-npm install --legacy-peer-deps
+2. **Missing Dependencies**
+   ```bash
+   npm install
+   ```
 
-# Or use --force (last resort)
-npm install --force
+3. **TypeScript Errors**
+   ```bash
+   # Check for type errors
+   npx tsc --noEmit
+   ```
 
-# Check Node.js version
-node -v
-# Should be 16.x or higher
+### API Calls Failing
 
-# Update npm
-npm install -g npm@latest
-```
+**Symptom:** Frontend can't communicate with backend
 
-#### 3. TypeScript Errors
+**Solutions:**
 
-**Error:**
-```
-TS2307: Cannot find module 'axios' or its corresponding type declarations
-```
+1. **Verify Backend is Running**
+   ```bash
+   curl http://localhost:8080/rooms/all
+   ```
 
-**Solution:**
-```bash
-# Install missing types
-npm install --save-dev @types/node @types/react @types/react-dom
+2. **Check API_BASE_URL**
+   - Verify `src/constants/index.ts` has correct URL
+   - Ensure no trailing slash
 
-# Rebuild
-npm run build
+3. **CORS Issues** (see [CORS Errors](#cors-errors))
 
-# Check tsconfig.json is present
-cat tsconfig.json
+### Blank Page / White Screen
 
-# If issues persist, delete and reinstall
-rm -rf node_modules package-lock.json
-npm install
-```
+**Symptom:** Application loads but shows nothing
 
-### Issue: API Calls Not Working
+**Solutions:**
 
-#### 1. CORS Errors
+1. **Check Browser Console**
+   - Press F12 → Console tab
+   - Look for JavaScript errors
 
-**Error in Browser Console:**
-```
-Access to XMLHttpRequest at 'http://localhost:8080/api/...' 
-from origin 'http://localhost:3000' has been blocked by CORS policy
-```
+2. **Check Network Tab**
+   - Look for failed API calls
+   - Check for 401/403 errors
 
-**Solution:**
-```java
-// Check backend CorsConfig.java
-@Configuration
-public class CorsConfig {
-    @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                    .allowedOrigins("http://localhost:3000")  // Add this
-                    .allowedMethods("GET", "POST", "PUT", "DELETE")
-                    .allowedHeaders("*")
-                    .allowCredentials(true);
-            }
-        };
-    }
-}
-```
+3. **Clear Browser Cache**
+   - Hard refresh: Ctrl+Shift+R
 
-#### 2. Network Error / Backend Not Reachable
+### HashRouter Navigation Issues
 
-**Error:**
-```
-Error: Network Error
-```
+**Symptom:** Routes not working correctly
 
-**Solution:**
-```bash
-# Check backend is running
-curl http://localhost:8080/rooms/all
+**Solutions:**
 
-# Verify API_BASE_URL in frontend
-# frontend/src/services/api.ts
-export const API_BASE_URL = "http://localhost:8080";  // Correct URL
+1. **Verify Router Setup**
+   - App.tsx should use `HashRouter`
+   - URLs should include `#` (e.g., `/#/rooms`)
 
-# Check for firewall issues
-# Disable firewall temporarily to test
-
-# Verify backend health
-curl -v http://localhost:8080/rooms/all
-```
-
-#### 3. 401 Unauthorized Errors
-
-**Error:**
-```
-Request failed with status code 401
-```
-
-**Solution:**
-```typescript
-// Check token is stored
-const token = localStorage.getItem('token');
-console.log('Token:', token);
-
-// Check token is being sent
-// In api.ts, verify interceptor:
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// If token expired, logout and login again
-localStorage.clear();
-window.location.href = '/login';
-```
-
-### Issue: Build Fails
-
-**Error:**
-```
-Failed to compile
-```
-
-**Solution:**
-```bash
-# Check for syntax errors
-npm run build
-
-# Look for missing dependencies
-npm install
-
-# Check import statements are correct
-# Verify file paths are correct
-
-# Clear build cache
-rm -rf build/
-npm run build
-
-# Check for circular dependencies
-npm ls
-```
+2. **Check Route Definitions**
+   - Ensure all routes are defined in App.tsx
+   - Check for typos in path names
 
 ---
 
 ## Database Issues
 
-### Issue: Connection Timeout
+### Connection Timeout
 
-**Error:**
-```
-Connection to localhost:5432 refused
-Connection timeout
-```
+**Symptom:** Database queries take too long or timeout
 
-**Solution:**
-```bash
-# Check PostgreSQL is running
-pg_isready -h localhost -p 5432
+**Solutions:**
 
-# Check PostgreSQL logs
-# macOS: /usr/local/var/log/postgres.log
-# Ubuntu: /var/log/postgresql/postgresql-*.log
+1. **Check Database Status**
+   ```bash
+   # PostgreSQL
+   sudo systemctl status postgresql
+   
+   # Check connections
+   psql -c "SELECT count(*) FROM pg_stat_activity;"
+   ```
 
-# Restart PostgreSQL
-# macOS: brew services restart postgresql
-# Ubuntu: sudo service postgresql restart
+2. **Increase Connection Pool**
+   ```properties
+   spring.datasource.hikari.maximum-pool-size=20
+   spring.datasource.hikari.connection-timeout=60000
+   ```
 
-# Verify port is correct
-netstat -an | grep 5432
+3. **Check for Long-Running Queries**
+   ```sql
+   SELECT pid, now() - pg_stat_activity.query_start AS duration, query
+   FROM pg_stat_activity
+   WHERE (now() - pg_stat_activity.query_start) > interval '5 minutes';
+   ```
 
-# Check pg_hba.conf allows connections
-# Should have:
-# local   all   all   trust
-# host    all   all   127.0.0.1/32   md5
-```
+### Schema Not Created
 
-### Issue: Schema/Table Not Found
+**Symptom:** Tables don't exist
 
-**Error:**
-```
-ERROR: relation "users" does not exist
-```
+**Solutions:**
 
-**Solution:**
-```bash
-# Check if tables exist
-psql -U postgres -d luxestay_db
-\dt
+1. **Check JPA Configuration**
+   ```properties
+   spring.jpa.hibernate.ddl-auto=update
+   ```
 
-# If no tables, let JPA create them
-# In application.properties:
-spring.jpa.hibernate.ddl-auto=update
+2. **Manual Schema Creation**
+   - Run SQL scripts from DATABASE_SCHEMA.md
 
-# Or manually create schema
-# See docs/DATABASE_SCHEMA.md for SQL
+3. **Check Entity Annotations**
+   - Ensure `@Entity` and `@Table` are present
 
-# Check database name is correct
-\l  # List all databases
-\c luxestay_db  # Connect to correct database
-```
+### Data Not Persisting
 
-### Issue: Slow Queries
+**Symptom:** Data disappears after restart
 
-**Symptoms:**
-- API responses taking too long
-- Database CPU usage high
+**Solutions:**
 
-**Solution:**
-```sql
--- Check for slow queries
-SELECT pid, now() - pg_stat_activity.query_start AS duration, query
-FROM pg_stat_activity
-WHERE state = 'active' AND now() - pg_stat_activity.query_start > interval '5 seconds';
+1. **Check Transaction Management**
+   - Ensure `@Transactional` on service methods
 
--- Check for missing indexes
-SELECT schemaname, tablename, indexname, idx_scan
-FROM pg_stat_user_indexes
-WHERE idx_scan = 0;
+2. **Verify Database URL**
+   - Not using in-memory database accidentally
 
--- Create missing indexes
-CREATE INDEX idx_booking_dates ON booking(check_in_date, check_out_date);
-
--- Analyze tables
-ANALYZE users;
-ANALYZE room;
-ANALYZE booking;
-```
+3. **Check for Rollbacks**
+   - Look for exceptions causing rollbacks in logs
 
 ---
 
 ## Authentication Issues
 
-### Issue: Cannot Login
+### Login Fails with Valid Credentials
 
-#### 1. Invalid Credentials
+**Symptom:** 401 Unauthorized on login
 
-**Symptoms:**
-- Login fails with 401
-- Correct password not working
+**Solutions:**
 
-**Solution:**
-```bash
-# Verify user exists in database
-psql -U postgres -d luxestay_db
-SELECT id, email, role FROM users WHERE email = 'user@example.com';
+1. **Check Password Encoding**
+   - Passwords must be BCrypt hashed in database
+   - Raw passwords won't work
 
-# Check password hash
-SELECT password FROM users WHERE email = 'user@example.com';
-# Should start with $2a$ or $2b$ (BCrypt)
+2. **Verify User Exists**
+   ```sql
+   SELECT * FROM users WHERE email = 'user@example.com';
+   ```
 
-# Reset password manually if needed
-UPDATE users 
-SET password = '$2a$10$...'  -- Use BCrypt hash generator
-WHERE email = 'user@example.com';
+3. **Check Password Match**
+   - Use BCrypt online tool to verify hash
 
-# Or create new user via registration endpoint
-```
+### JWT Token Invalid
 
-#### 2. Token Invalid/Expired
+**Symptom:** 401/403 on authenticated requests
 
-**Error:**
-```
-Token has expired
-Invalid token
-```
+**Solutions:**
 
-**Solution:**
-```typescript
-// Clear stored token and login again
-localStorage.removeItem('token');
-localStorage.removeItem('user');
-localStorage.removeItem('role');
-window.location.href = '/login';
+1. **Check Token Expiration**
+   - Tokens expire after 7 days
+   - Log out and log back in
 
-// Check JWT_SECRET is same on backend
-// Must match what was used to generate token
+2. **Verify Token Format**
+   - Must be `Bearer <token>` in header
+   - No extra spaces
 
-// Check token expiration time
-// Backend: JWTUtils.java
-private static final long EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 7; // 7 days
-```
+3. **Check JWT Secret**
+   - Same secret must be used for generation and validation
 
-#### 3. Role-Based Access Denied
+### Access Denied (403 Forbidden)
 
-**Error:**
-```
-403 Forbidden
-Access Denied
-```
+**Symptom:** User gets 403 on certain endpoints
 
-**Solution:**
-```sql
--- Check user role in database
-SELECT email, role FROM users WHERE email = 'user@example.com';
+**Solutions:**
 
--- Update role if needed
-UPDATE users SET role = 'ADMIN' WHERE email = 'admin@example.com';
+1. **Check User Role**
+   ```sql
+   SELECT role FROM users WHERE email = 'user@example.com';
+   ```
 
--- Verify token has correct role
--- Decode JWT at https://jwt.io
-// Should have "role" claim
-```
+2. **Verify Endpoint Permissions**
+   - Check `@PreAuthorize` annotations
+   - Admin endpoints require ADMIN role
 
-### Issue: Cannot Access Protected Routes
+3. **Frontend Role Check**
+   - Verify role is stored correctly in localStorage
 
-**Symptoms:**
-- Redirected to login when already logged in
-- Cannot access /profile or /admin pages
+### Session/Token Lost
 
-**Solution:**
-```typescript
-// Check AuthUtils functions
-import { AuthUtils } from './utils';
+**Symptom:** User gets logged out unexpectedly
 
-console.log('Authenticated:', AuthUtils.isAuthenticated());
-console.log('Admin:', AuthUtils.isAdmin());
-console.log('Token:', localStorage.getItem('token'));
-console.log('Role:', localStorage.getItem('role'));
+**Solutions:**
 
-// Verify ProtectedRoute component logic
-// Should check both authentication and role
-```
+1. **Check localStorage**
+   - Open DevTools → Application → Local Storage
+   - Verify token exists
+
+2. **Check for Errors**
+   - API errors might clear auth state
+
+3. **Token Expiration**
+   - Token might have expired
+
+---
+
+## External Services Issues
+
+### Cloudinary Upload Fails
+
+**Symptom:** Image upload returns error
+
+**Solutions:**
+
+1. **Verify API Credentials**
+   ```properties
+   cloudinary.cloud-name=correct_name
+   cloudinary.api-key=correct_key
+   cloudinary.api-secret=correct_secret
+   ```
+
+2. **Check File Size**
+   - Default limit is 10MB
+   - Large files may timeout
+
+3. **Check File Type**
+   - Only images allowed (jpg, png, webp)
+
+4. **Network Issues**
+   - Verify internet connectivity
+   - Check Cloudinary status page
+
+### Gemini AI Not Responding
+
+**Symptom:** AI chat returns errors
+
+**Solutions:**
+
+1. **Verify API Key**
+   ```properties
+   gemini.api.key=valid_key
+   ```
+
+2. **Check API Quota**
+   - Free tier has rate limits
+   - Check Google AI Studio dashboard
+
+3. **Network Issues**
+   - Verify connectivity to Google APIs
+
+4. **Model Availability**
+   - Gemini model might be updated
+   - Check model name in GeminiService
+
+### Stripe Payment Fails
+
+**Symptom:** Payment intent creation fails
+
+**Solutions:**
+
+1. **Verify API Key**
+   ```properties
+   stripe.secret.key=sk_test_xxxxx
+   ```
+
+2. **Check Key Type**
+   - Use test keys for development
+   - Use live keys for production
+
+3. **Amount Validation**
+   - Amount must be positive
+   - Check currency format
+
+4. **Stripe Dashboard**
+   - Check for errors in Stripe dashboard
 
 ---
 
 ## Deployment Issues
 
-### Issue: Backend Cold Start on Render
+### Application Crashes on Startup
 
-**Symptoms:**
-- First request takes 30-60 seconds
-- Subsequent requests fast
-
-**Cause:**
-- Render free tier spins down after inactivity
+**Symptom:** Deployed app won't start
 
 **Solutions:**
-```bash
-# 1. Upgrade to paid plan (always-on)
-# 2. Implement wake-up endpoint
-# 3. Use external monitoring service to ping regularly
 
-# Example: Create health endpoint
-@GetMapping("/health")
-public String health() {
-    return "OK";
-}
+1. **Check Logs**
+   ```bash
+   # Systemd
+   sudo journalctl -u luxestay -n 100
+   
+   # Docker
+   docker logs luxestay-backend
+   ```
 
-# Ping from frontend on load
-useEffect(() => {
-  fetch(`${API_BASE_URL}/health`);
-}, []);
+2. **Verify Environment Variables**
+   - All required variables must be set
+   - No placeholder values
+
+3. **Memory Issues**
+   - Increase JVM heap size
+   - Check available RAM
+
+### CORS Errors
+
+**Symptom:** Browser blocks API requests
+
 ```
-
-### Issue: Environment Variables Not Set
-
-**Error:**
-```
-Configuration error
-Missing required environment variable
-```
-
-**Solution:**
-```bash
-# Vercel - Add environment variables:
-# Dashboard → Project → Settings → Environment Variables
-
-# Render - Add environment variables:
-# Dashboard → Service → Environment → Add Environment Variable
-
-# Verify variables are set
-# Add temporary log in code (remove after checking):
-console.log('API_URL:', process.env.REACT_APP_API_URL);
-System.out.println("JWT_SECRET present: " + (jwtSecret != null));
-```
-
-### Issue: Build Fails on Vercel
-
-**Error:**
-```
-Build failed
-Command "npm run build" exited with 1
-```
-
-**Solution:**
-```bash
-# Check Vercel build logs for specific error
-
-# Common fixes:
-# 1. Ensure all dependencies in package.json
-# 2. Fix TypeScript errors
-# 3. Set correct build command: npm run build
-# 4. Set correct output directory: build
-# 5. Set root directory: frontend
-
-# Test build locally
-cd frontend
-npm run build
-
-# Check .gitignore doesn't exclude required files
-```
-
----
-
-## Performance Issues
-
-### Issue: Slow API Responses
-
-**Diagnosis:**
-```bash
-# Time API requests
-time curl http://localhost:8080/rooms/all
-
-# Check backend logs for slow queries
-# Enable query logging in application.properties:
-spring.jpa.show-sql=true
-spring.jpa.properties.hibernate.format_sql=true
-logging.level.org.hibernate.SQL=DEBUG
+Access to fetch at 'http://api.example.com' from origin 'http://frontend.example.com' 
+has been blocked by CORS policy
 ```
 
 **Solutions:**
 
-1. **Add Database Indexes:**
-```sql
-CREATE INDEX idx_booking_dates ON booking(check_in_date, check_out_date);
-CREATE INDEX idx_booking_room ON booking(room_id);
-CREATE INDEX idx_booking_user ON booking(user_id);
-```
+1. **Update CorsConfig.java**
+   ```java
+   .allowedOrigins(
+       "http://localhost:5173",
+       "https://your-frontend-domain.com"
+   )
+   ```
 
-2. **Optimize JPA Fetching:**
-```java
-// Use LAZY loading
-@OneToMany(mappedBy = "room", fetch = FetchType.LAZY)
-private List<Booking> bookings;
+2. **Redeploy Backend**
+   - CORS changes require restart
 
-// Use JOIN FETCH for specific queries
-@Query("SELECT r FROM Room r LEFT JOIN FETCH r.bookings WHERE r.id = :id")
-Room findRoomWithBookings(@Param("id") Long id);
-```
+3. **Check Preflight**
+   - Ensure OPTIONS method is allowed
 
-3. **Add Caching:**
-```java
-@Cacheable("rooms")
-public List<Room> getAllRooms() {
-    return roomRepository.findAll();
-}
-```
+### SSL/HTTPS Issues
 
-### Issue: Large Bundle Size (Frontend)
-
-**Check bundle size:**
-```bash
-npm run build
-# Check build/static/js/*.js file sizes
-```
+**Symptom:** HTTPS not working or mixed content
 
 **Solutions:**
-```bash
-# 1. Enable code splitting
-# Already done with React Router
 
-# 2. Analyze bundle
-npm install -g source-map-explorer
-source-map-explorer build/static/js/*.js
+1. **Verify Certificates**
+   ```bash
+   sudo certbot certificates
+   ```
 
-# 3. Remove unused dependencies
-npm prune
+2. **Renew Certificates**
+   ```bash
+   sudo certbot renew
+   ```
 
-# 4. Use production build
-npm run build
-```
+3. **Update API URL**
+   - Frontend must use `https://` for API calls
+
+### Static Files Not Loading
+
+**Symptom:** CSS/JS 404 errors
+
+**Solutions:**
+
+1. **Check Build Output**
+   - Vite outputs to `dist/` folder
+   - Ensure all files are uploaded
+
+2. **Check Base URL**
+   - HashRouter handles routing client-side
+
+3. **Server Configuration**
+   - Serve index.html for all routes
 
 ---
 
 ## Common Error Messages
 
-### Backend Errors
+### "Room not available for selected dates"
 
-#### "Bean creation exception"
-```
-Error creating bean with name 'securityFilterChain'
-```
-**Fix:** Check SecurityConfig.java syntax and dependencies
+**Cause:** Room already booked for those dates
 
-#### "Method not found"
-```
-NoSuchMethodError: org.springframework...
-```
-**Fix:** Dependency version conflict. Update Spring Boot version or check dependency compatibility
+**Solution:**
+- Choose different dates
+- Check room availability calendar
+- Try a different room
 
-#### "Access denied"
-```
-Access is denied (user is anonymous)
-```
-**Fix:** Add `@PreAuthorize` annotation or check authentication
+### "Invalid email or password"
 
-### Frontend Errors
+**Cause:** Credentials don't match
 
-#### "Cannot find module"
-```
-Module not found: Can't resolve 'axios'
-```
-**Fix:** `npm install axios`
+**Solution:**
+- Check for typos
+- Reset password if forgotten
+- Verify email is registered
 
-#### "Unexpected token"
-```
-SyntaxError: Unexpected token <
-```
-**Fix:** Check for HTML returned instead of JSON (API error), verify API URL
+### "User not found"
 
-#### "Objects are not valid as React child"
-```
-Error: Objects are not valid as a React child
-```
-**Fix:** Trying to render object directly. Use `.toString()` or render specific properties
+**Cause:** User doesn't exist in database
+
+**Solution:**
+- Register a new account
+- Check email spelling
+
+### "Token has expired"
+
+**Cause:** JWT token expired (after 7 days)
+
+**Solution:**
+- Log out and log back in
+- Token will be refreshed on login
+
+### "Failed to upload image"
+
+**Cause:** Cloudinary upload issue
+
+**Solution:**
+- Check file size (< 10MB)
+- Verify file is an image
+- Check Cloudinary credentials
 
 ---
 
-## Getting Additional Help
+## Debug Logging
 
-### Enable Debug Logging
+### Enable Debug Mode
 
-**Backend:**
+**Backend (application.properties):**
 ```properties
-# application.properties
+# General debug
+logging.level.root=DEBUG
+
+# Specific packages
 logging.level.com.sanjo.backend=DEBUG
-logging.level.org.springframework.security=DEBUG
+logging.level.org.springframework.web=DEBUG
+logging.level.org.hibernate.SQL=DEBUG
+logging.level.org.hibernate.type.descriptor.sql.BasicBinder=TRACE
 ```
 
 **Frontend:**
 ```typescript
-// In api.ts
-api.interceptors.request.use((config) => {
-  console.log('Request:', config);
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => {
-    console.log('Response:', response);
-    return response;
-  },
-  (error) => {
-    console.error('Error:', error);
-    return Promise.reject(error);
-  }
-);
+// Add console logs in ApiService
+console.log('Request:', endpoint, body);
+console.log('Response:', response);
 ```
 
-### Useful Commands
+### View Logs
 
+**Local Development:**
+- Backend: Console output
+- Frontend: Browser DevTools Console
+
+**Production:**
 ```bash
-# Check all environment variables
-env | grep -i luxe
+# Systemd
+sudo journalctl -u luxestay -f
 
-# Check Java processes
-jps -l
+# Docker
+docker logs -f luxestay-backend
 
-# Check Node processes
-ps aux | grep node
-
-# Check database connections
-psql -U postgres -c "SELECT * FROM pg_stat_activity;"
-
-# Check network connections
-netstat -an | grep LISTEN
-
-# Check disk space
-df -h
-
-# Check memory usage
-free -m
+# File logs
+tail -f /var/log/luxestay/application.log
 ```
-
-### Still Need Help?
-
-1. Check [GitHub Issues](https://github.com/Skywalker690/LuxeStay-Hub/issues)
-2. Review [Documentation](../docs/)
-3. Search Stack Overflow
-4. Create a new issue with:
-   - Error message
-   - Steps to reproduce
-   - Environment details
-   - What you've tried
 
 ---
 
 ## Preventive Measures
 
-### Best Practices
-
-1. **Always check logs first**
-2. **Test locally before deploying**
-3. **Keep dependencies updated**
-4. **Use version control**
-5. **Document changes**
-6. **Test in different environments**
-7. **Monitor production**
-8. **Have rollback plan**
-
 ### Regular Maintenance
 
-- [ ] Update dependencies monthly
-- [ ] Check logs weekly
-- [ ] Monitor database size
-- [ ] Review error rates
-- [ ] Test backup/restore
-- [ ] Verify all endpoints work
-- [ ] Check SSL certificates
+1. **Update Dependencies**
+   ```bash
+   # Backend
+   ./mvnw versions:display-dependency-updates
+   
+   # Frontend
+   npm outdated
+   ```
+
+2. **Monitor Application Health**
+   - Set up health checks
+   - Monitor error rates
+   - Track response times
+
+3. **Database Maintenance**
+   ```sql
+   -- Analyze tables
+   ANALYZE;
+   
+   -- Vacuum to reclaim space
+   VACUUM ANALYZE;
+   ```
+
+### Backup Strategy
+
+1. **Database Backups**
+   ```bash
+   pg_dump luxestay_db > backup_$(date +%Y%m%d).sql
+   ```
+
+2. **Test Restore Procedure**
+   - Regularly test backup restoration
 
 ---
 
-Happy debugging! 🐛🔧
+## Getting Help
+
+If you can't resolve an issue:
+
+1. **Search Existing Issues**
+   - Check GitHub issues for similar problems
+
+2. **Gather Information**
+   - Error messages
+   - Log excerpts
+   - Steps to reproduce
+
+3. **Create an Issue**
+   - Use the bug report template
+   - Include all relevant details
+
+4. **Community Support**
+   - GitHub Discussions
+   - Stack Overflow (tag: spring-boot, react)
+
+---
+
+**Last Updated:** 2025-12-08
+
+**Author:** Aryan Sharma

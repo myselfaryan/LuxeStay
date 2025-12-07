@@ -87,6 +87,8 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
 - Room management endpoints
 - Booking management endpoints
 - User management endpoints
+- AI Chat endpoints (Gemini integration)
+- Payment endpoints (Stripe integration)
 - Request/response examples
 - Error handling
 - Status codes
@@ -108,13 +110,13 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
   - Controllers, Services, Repositories
   - Security configuration
   - Entity relationships
-- Frontend architecture (React)
+- Frontend architecture (React + Vite)
   - Component structure
   - State management
   - API integration
-  - Routing
+  - Routing (HashRouter)
 - Database design
-- Cloud services integration
+- Cloud services integration (Cloudinary, Stripe, Gemini)
 - Deployment architecture
 
 **Best for:**
@@ -128,9 +130,9 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
 ### [Development Setup Guide](./DEVELOPMENT_SETUP.md)
 
 **What's inside:**
-- Prerequisites (Java, Node.js, PostgreSQL)
+- Prerequisites (Java 21, Node.js, PostgreSQL)
 - Backend setup instructions
-- Frontend setup instructions
+- Frontend setup instructions (Vite)
 - Environment configuration
 - Database setup
 - Running tests
@@ -150,10 +152,10 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
 ### [Deployment Guide](./DEPLOYMENT.md)
 
 **What's inside:**
-- Database deployment (NeonDB)
-- AWS S3 setup
-- Backend deployment (Render)
-- Frontend deployment (Vercel)
+- Database deployment (PostgreSQL)
+- Cloudinary setup for images
+- Backend deployment (Hostinger)
+- Frontend deployment
 - Post-deployment configuration
 - Continuous deployment
 - Monitoring and maintenance
@@ -208,13 +210,13 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
 - SQL injection prevention
 - XSS prevention
 - CSRF protection
-- File upload security
+- File upload security (Cloudinary)
 - Session management
 - HTTPS/TLS
 - Environment variables
-- Rate limiting (planned)
+- Rate limiting
 - Security headers
-- Audit logging (planned)
+- Audit logging
 - Vulnerability scanning
 - Incident response
 
@@ -260,6 +262,7 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
   - Port conflicts
 - Frontend issues
   - npm installation
+  - Vite dev server
   - API calls
   - CORS errors
   - Build failures
@@ -272,8 +275,6 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
   - Token problems
   - Access control
 - Deployment issues
-  - Cold starts
-  - Environment variables
 - Performance issues
 - Common error messages
 - Debug logging
@@ -311,7 +312,7 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
 - Security: [Security Documentation](./SECURITY.md)
 - Setup: [Development Setup](./DEVELOPMENT_SETUP.md)
 
-**Frontend (React):**
+**Frontend (React + Vite):**
 - Architecture: [Architecture Guide](./ARCHITECTURE.md)
 - API Integration: [API Documentation](./API_DOCUMENTATION.md)
 - Setup: [Development Setup](./DEVELOPMENT_SETUP.md)
@@ -323,9 +324,10 @@ Welcome to the LuxeStay Hub documentation! This index helps you navigate through
 - Deployment: [Deployment Guide](./DEPLOYMENT.md)
 - Troubleshooting: [Troubleshooting Guide](./TROUBLESHOOTING.md)
 
-**Deployment (Vercel/Render/NeonDB):**
-- Guide: [Deployment Guide](./DEPLOYMENT.md)
-- Troubleshooting: [Troubleshooting Guide](./TROUBLESHOOTING.md)
+**Cloud Services (Cloudinary, Stripe, Gemini):**
+- Architecture: [Architecture Guide](./ARCHITECTURE.md)
+- Setup: [Development Setup](./DEVELOPMENT_SETUP.md)
+- Deployment: [Deployment Guide](./DEPLOYMENT.md)
 
 ---
 
@@ -413,7 +415,7 @@ Found an error or gap in documentation?
 ## 📊 Documentation Statistics
 
 - **Total Documents:** 8
-- **Total Lines:** ~4,700+
+- **Total Lines:** ~5,000+
 - **Topics Covered:** 100+
 - **Code Examples:** 150+
 - **Diagrams:** 5+
@@ -451,22 +453,32 @@ Found an error or gap in documentation?
 
 - [Spring Boot Documentation](https://spring.io/projects/spring-boot)
 - [React Documentation](https://react.dev/)
+- [Vite Documentation](https://vitejs.dev/)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [JWT.io](https://jwt.io/)
-- [AWS S3 Documentation](https://docs.aws.amazon.com/s3/)
+- [Cloudinary Documentation](https://cloudinary.com/documentation)
+- [Stripe Documentation](https://stripe.com/docs)
+- [Google Gemini API](https://ai.google.dev/docs)
 
 ### Project Links
 
-- [GitHub Repository](https://github.com/Skywalker690/LuxeStay-Hub)
+- [GitHub Repository](https://github.com/myselfaryan/LuxeStay-Hub)
 - [Main README](../README.md)
 - [License](../LICENSE)
-- [Issue Tracker](https://github.com/Skywalker690/LuxeStay-Hub/issues)
+- [Issue Tracker](https://github.com/myselfaryan/LuxeStay-Hub/issues)
 
 ---
 
 ## 📝 Version History
 
 ### Latest Updates
+
+- **v1.1.0** (2025-12-08)
+  - Updated documentation for new features
+  - Added AI Concierge (Gemini) documentation
+  - Added Stripe payment integration docs
+  - Updated to Cloudinary from AWS S3
+  - Updated frontend to Vite build system
 
 - **v1.0.0** (2025-10-25)
   - Initial comprehensive documentation
@@ -476,7 +488,9 @@ Found an error or gap in documentation?
 
 ---
 
-**Last Updated:** 2025-10-25
+**Last Updated:** 2025-12-08
+
+**Author:** Aryan Sharma
 
 **Need to update this document?** See [Contributing Guidelines](./CONTRIBUTING.md)
 

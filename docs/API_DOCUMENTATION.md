@@ -4,7 +4,6 @@
 
 LuxeStay Hub provides a RESTful API for hotel management and booking operations. The API is built with Spring Boot and follows REST principles.
 
-**Base URL (Production):** `https://luxestay-hub.onrender.com`  
 **Base URL (Local):** `http://localhost:8080`
 
 ## Authentication
@@ -120,9 +119,9 @@ Retrieve all rooms in the system.
   "roomList": [
     {
       "id": 1,
-      "roomType": "Deluxe",
+      "roomType": "Deluxe Suite",
       "roomPrice": 150.00,
-      "roomPhotoUrl": "https://s3.amazonaws.com/...",
+      "roomPhotoUrl": "https://res.cloudinary.com/...",
       "roomDescription": "Spacious room with ocean view",
       "bookings": []
     }
@@ -160,13 +159,13 @@ Filter rooms by availability dates and room type.
 **Authentication:** Not required
 
 **Query Parameters:**
-- `checkInDate` (required) - Format: YYYY-MM-DD
-- `checkOutDate` (required) - Format: YYYY-MM-DD
-- `roomType` (required) - Room type (e.g., "Deluxe", "Standard")
+- `checkInDate` (optional) - Format: YYYY-MM-DD
+- `checkOutDate` (optional) - Format: YYYY-MM-DD
+- `roomType` (optional) - Room type (e.g., "Deluxe Suite", "Single")
 
 **Example Request:**
 ```
-GET /rooms/available-rooms-by-date-and-type?checkInDate=2025-11-01&checkOutDate=2025-11-05&roomType=Deluxe
+GET /rooms/available-rooms-by-date-and-type?checkInDate=2025-11-01&checkOutDate=2025-11-05&roomType=Deluxe Suite
 ```
 
 **Response:**
@@ -190,7 +189,7 @@ Get a list of all available room types.
 
 **Response:**
 ```json
-["Standard", "Deluxe", "Suite", "Presidential"]
+["Single", "Double", "Deluxe Suite", "Presidential Suite"]
 ```
 
 ---
@@ -213,9 +212,9 @@ Retrieve details of a specific room.
   "message": "Room retrieved successfully",
   "room": {
     "id": 1,
-    "roomType": "Deluxe",
+    "roomType": "Deluxe Suite",
     "roomPrice": 150.00,
-    "roomPhotoUrl": "https://s3.amazonaws.com/...",
+    "roomPhotoUrl": "https://res.cloudinary.com/...",
     "roomDescription": "Spacious room with ocean view",
     "bookings": [...]
   }
@@ -233,7 +232,7 @@ Create a new room in the system.
 **Authentication:** Required (ADMIN role)
 
 **Request:** multipart/form-data
-- `photo` (file) - Room image
+- `photo` (file) - Room image (uploaded to Cloudinary)
 - `roomType` (string) - Type of room
 - `roomPrice` (decimal) - Price per night
 - `roomDescription` (string) - Room description
@@ -432,34 +431,6 @@ Retrieve all users in the system.
 
 ---
 
-### Get User by ID (Admin Only)
-
-Retrieve details of a specific user.
-
-**Endpoint:** `GET /users/get-by-id/{userId}`
-
-**Authentication:** Required (ADMIN role)
-
-**Path Parameters:**
-- `userId` - User ID
-
-**Response:**
-```json
-{
-  "statusCode": 200,
-  "message": "User retrieved successfully",
-  "user": {
-    "id": 1,
-    "name": "John Doe",
-    "email": "john@example.com",
-    "phoneNumber": "+1234567890",
-    "role": "USER"
-  }
-}
-```
-
----
-
 ### Get Logged-in User Profile
 
 Get the profile of the currently authenticated user.
@@ -526,6 +497,100 @@ Remove a user from the system.
 
 ---
 
+## AI Chat Endpoints
+
+### Chat with AI Concierge
+
+Send a message to the AI concierge powered by Google Gemini.
+
+**Endpoint:** `POST /ai/chat`
+
+**Authentication:** Not required
+
+**Request Body:**
+```json
+{
+  "message": "What amenities does the hotel offer?"
+}
+```
+
+**Response:**
+```json
+{
+  "statusCode": 200,
+  "message": "Welcome to LuxeStay! We offer a range of premium amenities including free high-speed Wi-Fi, 24/7 Gym, Rooftop Swimming Pool, and our Luxury Spa. Continental breakfast is included with all bookings. Is there anything specific you'd like to know more about?"
+}
+```
+
+**Notes:**
+- The AI is trained to answer questions about hotel amenities, policies, check-in/out times, etc.
+- Questions unrelated to the hotel will receive a polite redirect
+
+---
+
+### Get AI Room Recommendations
+
+Get personalized room recommendations based on natural language query.
+
+**Endpoint:** `POST /ai/recommend-rooms`
+
+**Authentication:** Not required
+
+**Request Body:**
+```json
+{
+  "query": "I need a romantic room for 2 with a great view, budget around $200"
+}
+```
+
+**Response:**
+```json
+{
+  "statusCode": 200,
+  "message": "{\"recommendations\": [{\"roomId\": 3, \"matchScore\": 95, \"reason\": \"The Deluxe Suite is perfect for a romantic getaway, featuring a spacious layout with panoramic views. At $150/night, it's well within your budget while offering premium amenities.\"}]}"
+}
+```
+
+**Notes:**
+- The `message` field contains a JSON string with recommendations
+- Each recommendation includes roomId, matchScore (0-100), and personalized reason
+- Recommendations are based on all available rooms in the system
+
+---
+
+## Payment Endpoints
+
+### Create Payment Intent
+
+Create a Stripe PaymentIntent for processing a booking payment.
+
+**Endpoint:** `POST /payments/create-payment-intent`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "amount": 450.00
+}
+```
+
+**Response:**
+```json
+{
+  "statusCode": 200,
+  "message": "Payment Intent Created",
+  "clientSecret": "pi_3OxxxxxxxxxxxClient_secret_xxxxxxxxx"
+}
+```
+
+**Notes:**
+- Amount should be the total booking amount
+- Use the `clientSecret` with Stripe.js on the frontend to complete payment
+- After successful payment, proceed with the booking API
+
+---
+
 ## Error Responses
 
 All endpoints may return error responses in the following format:
@@ -557,4 +622,43 @@ Currently, there are no rate limits imposed on the API. However, this may change
 
 ## CORS Policy
 
-The API supports CORS for the frontend application. Allowed origins are configured in the backend.
+The API supports CORS for the frontend application. Allowed origins are configured in the backend's `CorsConfig.java`.
+
+---
+
+## API Testing
+
+### Using cURL
+
+**Login:**
+```bash
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+
+**Get All Rooms:**
+```bash
+curl http://localhost:8080/rooms/all
+```
+
+**Book a Room (with auth):**
+```bash
+curl -X POST http://localhost:8080/bookings/book-room/1/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{"checkInDate":"2025-12-01","checkOutDate":"2025-12-05","numOfAdults":2,"numOfChildren":0}'
+```
+
+**Chat with AI:**
+```bash
+curl -X POST http://localhost:8080/ai/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"What time is check-in?"}'
+```
+
+---
+
+## Postman Collection
+
+A Postman collection is available in `docs/postman_collection.json` for testing all API endpoints.
